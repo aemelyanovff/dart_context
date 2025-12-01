@@ -98,8 +98,11 @@ class QueryExecutor {
       DefinitionResult r => r.definitions.map(_symbolFromDef).toList(),
       MembersResult r => r.members,
       HierarchyResult r => [...r.supertypes, ...r.subtypes],
-      CallGraphResult r => r.connections,
-      DependenciesResult r => r.dependencies,
+      CallGraphResult r => [r.symbol, ...r.connections],
+      DependenciesResult r => [r.symbol, ...r.dependencies],
+      ReferencesResult r => [r.symbol],
+      AggregatedReferencesResult r => r.symbolRefs.map((sr) => sr.symbol).toList(),
+      WhichResult r => r.matches.map((m) => m.symbol).toList(),
       _ => <SymbolInfo>[],
     };
   }

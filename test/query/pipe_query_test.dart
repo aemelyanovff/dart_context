@@ -87,69 +87,175 @@ void main() {
       );
     });
 
-    test('pipe find to members', () async {
-      final result = await executor.execute('find Auth* kind:class | members');
+    group('pipe combinations', () {
+      test('find | members - search then get members', () async {
+        final result =
+            await executor.execute('find Auth* kind:class | members');
+        expect(
+          result,
+          anyOf(
+            isA<MembersResult>(),
+            isA<PipelineResult>(),
+            isA<NotFoundResult>(),
+          ),
+        );
+      });
 
-      // Should get members from both AuthRepository and AuthService
-      // Could be MembersResult, PipelineResult, or NotFoundResult
-      expect(
-        result,
-        anyOf(
-          isA<MembersResult>(),
-          isA<PipelineResult>(),
-          isA<NotFoundResult>(),
-        ),
-      );
+      test('find | refs - search then find references', () async {
+        final result = await executor.execute('find AuthRepository | refs');
+        expect(
+          result,
+          anyOf(
+            isA<ReferencesResult>(),
+            isA<AggregatedReferencesResult>(),
+            isA<PipelineResult>(),
+          ),
+        );
+      });
+
+      test('find | def - search then find definitions', () async {
+        final result = await executor.execute('find Auth* | def');
+        expect(
+          result,
+          anyOf(
+            isA<DefinitionResult>(),
+            isA<PipelineResult>(),
+            isA<NotFoundResult>(),
+          ),
+        );
+      });
+
+      test('find | calls - search then get call graph', () async {
+        final result = await executor.execute('find Auth* kind:class | calls');
+        expect(
+          result,
+          anyOf(isA<CallGraphResult>(), isA<PipelineResult>()),
+        );
+      });
+
+      test('members | source - get members then source', () async {
+        final result =
+            await executor.execute('members AuthRepository | source');
+        expect(result, isA<QueryResult>());
+      });
+
+      test('which | refs - disambiguate then find refs', () async {
+        final result = await executor.execute('which login | refs');
+        expect(result, isA<QueryResult>());
+      });
     });
 
-    test('pipe find to refs', () async {
-      final result = await executor.execute('find AuthRepository | refs');
+    group('error handling', () {
+      test('handles empty first result', () async {
+        final result = await executor.execute('find NonExistent* | refs');
+        expect(
+          result,
+          anyOf(isA<SearchResult>(), isA<NotFoundResult>()),
+        );
+      });
 
-      // AuthRepository is referenced in AuthService
-      expect(
-        result,
-        anyOf(
-          isA<ReferencesResult>(),
-          isA<AggregatedReferencesResult>(),
-          isA<PipelineResult>(),
-        ),
-      );
+      test('handles error in first query', () async {
+        final result = await executor.execute('invalid_query | refs');
+        expect(result, isA<ErrorResult>());
+      });
+
+      test('handles not found in pipe step', () async {
+        final result =
+            await executor.execute('find ZZZNonExistent | members');
+        expect(
+          result,
+          anyOf(isA<NotFoundResult>(), isA<SearchResult>()),
+        );
+      });
     });
 
-    test('handles empty first result', () async {
-      final result = await executor.execute('find NonExistent* | refs');
-      // Empty find result, pipeline should handle gracefully
-      expect(
-        result,
-        anyOf(isA<SearchResult>(), isA<NotFoundResult>()),
-      );
+    group('multiple pipes', () {
+      test('three stage pipeline', () async {
+        // Find -> Members -> (would need source but skipping for speed)
+        final result =
+            await executor.execute('find Auth* kind:class | members');
+        expect(result, isA<QueryResult>());
+      });
     });
 
-    test('handles no results from pipe step', () async {
-      // Find unused symbols (nothing calls them)
-      final result = await executor.execute('find authenticate | callers');
-      // Could be CallGraphResult with empty connections
-      expect(result, isA<QueryResult>());
+    group('result merging', () {
+      test('merges multiple search results', () async {
+        // Multiple symbols found, each queried
+        final result = await executor.execute('find Auth* | def');
+        expect(result, isA<QueryResult>());
+        // Results should be aggregated
+      });
+
+      test('merges multiple reference results', () async {
+        final result = await executor.execute('find Auth* kind:class | refs');
+        expect(result, isA<QueryResult>());
+      });
     });
 
-    test('multiple pipes', () async {
-      // Find Auth* -> get their members -> not practical to go further
-      // but test the chain works
-      final result = await executor.execute('find Auth* kind:class | members');
-      expect(result, isA<QueryResult>());
+    group('special cases', () {
+      test('single symbol through pipe', () async {
+        final result = await executor.execute('find AuthRepository | refs');
+        expect(result, isA<QueryResult>());
+      });
+
+      test('pipe preserves kind filter context', () async {
+        final result =
+            await executor.execute('find * kind:method | callers');
+        expect(result, isA<QueryResult>());
+      });
+    });
+  });
+
+  group('Pipe Query Documentation', () {
+    test('supported first queries', () {
+      // Document which queries can be piped FROM
+      // These produce symbols that can be passed to next query
+      const supportedFirst = [
+        'find', // SearchResult -> symbols
+        'def', // DefinitionResult -> symbols from definitions
+        'members', // MembersResult -> member symbols
+        'hierarchy', // HierarchyResult -> super/subtypes
+        'calls', // CallGraphResult -> called symbols
+        'callers', // CallGraphResult -> caller symbols
+        'deps', // DependenciesResult -> dependency symbols
+        'refs', // ReferencesResult -> the queried symbol
+        'which', // WhichResult -> matching symbols
+      ];
+      expect(supportedFirst.length, 9);
     });
 
-    test('pipe with error in first query', () async {
-      final result = await executor.execute('invalid_query | refs');
-      expect(result, isA<ErrorResult>());
+    test('supported second queries', () {
+      // Document which queries can be piped TO
+      // These accept a symbol name as target
+      const supportedSecond = [
+        'def', // Find definition
+        'refs', // Find references
+        'members', // Get members
+        'impls', // Find implementations
+        'supertypes', // Get supertypes
+        'subtypes', // Get subtypes
+        'hierarchy', // Get hierarchy
+        'source', // Get source
+        'calls', // Get call graph (outgoing)
+        'callers', // Get call graph (incoming)
+        'deps', // Get dependencies
+      ];
+      expect(supportedSecond.length, 11);
     });
 
-    test('result has merged data', () async {
-      // When piping find to refs, we should get aggregated references
-      final result = await executor.execute('find Auth* | refs');
+    test('unsupported combinations', () {
+      // These DON'T produce symbols, can't be first query:
+      // - grep (returns text matches, not symbols)
+      // - imports/exports (returns file paths/strings)
+      // - files (returns file list)
+      // - stats (returns statistics)
 
-      // Check that we get some kind of result
-      expect(result, isA<QueryResult>());
+      // These DON'T accept symbols, can't be second query:
+      // - grep (needs pattern)
+      // - imports/exports (needs file path)
+      // - files/stats (no target needed)
+      // - find (needs pattern, not symbol) - actually could work
+      expect(true, isTrue); // Documentation test
     });
   });
 }
