@@ -176,6 +176,31 @@ void logError(String msg) {
       expect(grepResult.matches.first.matchText, contains('AuthException'));
     });
 
+    test('grep extracts symbols containing matches', () async {
+      final result = await executor.execute('grep TODO');
+      expect(result, isA<GrepResult>());
+
+      final grepResult = result as GrepResult;
+      expect(grepResult.symbols, isNotEmpty);
+      expect(
+        grepResult.symbols.any((s) => s.name == 'AuthService'),
+        isTrue,
+      );
+    });
+
+    test('grep results can be piped to refs', () async {
+      final result = await executor.execute('grep TODO | refs');
+      expect(
+        result,
+        anyOf(
+          isA<ReferencesResult>(),
+          isA<AggregatedReferencesResult>(),
+          isA<PipelineResult>(),
+          isA<NotFoundResult>(),
+        ),
+      );
+    });
+
     test('grep result toText includes file grouping', () async {
       final result = await executor.execute('grep TODO');
       expect(result, isA<GrepResult>());
