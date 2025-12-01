@@ -16,17 +16,23 @@ class ScipIndex {
     required Map<String, List<OccurrenceInfo>> referenceIndex,
     required Map<String, scip.Document> documentIndex,
     required Map<String, List<String>> childIndex,
+    required Map<String, Set<String>> callsIndex,
+    required Map<String, Set<String>> callersIndex,
     required String projectRoot,
   })  : _symbolIndex = symbolIndex,
         _referenceIndex = referenceIndex,
         _documentIndex = documentIndex,
         _childIndex = childIndex,
+        _callsIndex = callsIndex,
+        _callersIndex = callersIndex,
         _projectRoot = projectRoot;
 
   final Map<String, SymbolInfo> _symbolIndex;
   final Map<String, List<OccurrenceInfo>> _referenceIndex;
   final Map<String, scip.Document> _documentIndex;
   final Map<String, List<String>> _childIndex; // parent → children
+  final Map<String, Set<String>> _callsIndex; // symbol → symbols it calls
+  final Map<String, Set<String>> _callersIndex; // symbol → symbols that call it
   final String _projectRoot;
 
   /// Load index from a SCIP protobuf file.
@@ -48,9 +54,14 @@ class ScipIndex {
     final referenceIndex = <String, List<OccurrenceInfo>>{};
     final documentIndex = <String, scip.Document>{};
     final childIndex = <String, List<String>>{};
+    final callsIndex = <String, Set<String>>{};
+    final callersIndex = <String, Set<String>>{};
 
     for (final doc in raw.documents) {
       documentIndex[doc.relativePath] = doc;
+
+      // First pass: collect definitions with their ranges
+      final definitionsInFile = <({String symbol, int startLine, int endLine})>[];
 
       // Index symbols defined in this file
       for (final sym in doc.symbols) {
@@ -71,6 +82,42 @@ class ScipIndex {
         referenceIndex.putIfAbsent(occ.symbol, () => []).add(
               OccurrenceInfo.fromScip(occ, file: doc.relativePath),
             );
+
+        // Track definitions with their enclosing ranges for call graph
+        final isDefinition =
+            (occ.symbolRoles & scip.SymbolRole.Definition.value) != 0;
+        if (isDefinition && occ.enclosingRange.isNotEmpty) {
+          final startLine = occ.range.isNotEmpty ? occ.range[0] : 0;
+          final endLine =
+              occ.enclosingRange.length > 2 ? occ.enclosingRange[2] : startLine;
+          definitionsInFile.add((
+            symbol: occ.symbol,
+            startLine: startLine,
+            endLine: endLine,
+          ));
+        }
+      }
+
+      // Second pass: build call graph by matching references to enclosing definitions
+      for (final occ in doc.occurrences) {
+        final isReference =
+            (occ.symbolRoles & scip.SymbolRole.Definition.value) == 0;
+        if (!isReference) continue;
+
+        final refLine = occ.range.isNotEmpty ? occ.range[0] : 0;
+        final referencedSymbol = occ.symbol;
+
+        // Find which definition contains this reference
+        for (final def in definitionsInFile) {
+          if (refLine >= def.startLine && refLine <= def.endLine) {
+            // def.symbol calls referencedSymbol
+            callsIndex.putIfAbsent(def.symbol, () => {}).add(referencedSymbol);
+            callersIndex
+                .putIfAbsent(referencedSymbol, () => {})
+                .add(def.symbol);
+            break; // Use the first (innermost) match
+          }
+        }
       }
     }
 
@@ -84,6 +131,8 @@ class ScipIndex {
       referenceIndex: referenceIndex,
       documentIndex: documentIndex,
       childIndex: childIndex,
+      callsIndex: callsIndex,
+      callersIndex: callersIndex,
       projectRoot: projectRoot,
     );
   }
@@ -95,6 +144,8 @@ class ScipIndex {
       referenceIndex: {},
       documentIndex: {},
       childIndex: {},
+      callsIndex: {},
+      callersIndex: {},
       projectRoot: projectRoot,
     );
   }
@@ -113,6 +164,9 @@ class ScipIndex {
     // Add new document
     _documentIndex[path] = doc;
 
+    // First pass: collect definitions with their ranges
+    final definitionsInFile = <({String symbol, int startLine, int endLine})>[];
+
     // Index symbols
     for (final sym in doc.symbols) {
       _symbolIndex[sym.symbol] = SymbolInfo.fromScip(sym, file: path);
@@ -128,6 +182,38 @@ class ScipIndex {
       _referenceIndex.putIfAbsent(occ.symbol, () => []).add(
             OccurrenceInfo.fromScip(occ, file: path),
           );
+
+      // Track definitions with their enclosing ranges for call graph
+      final isDefinition =
+          (occ.symbolRoles & scip.SymbolRole.Definition.value) != 0;
+      if (isDefinition && occ.enclosingRange.isNotEmpty) {
+        final startLine = occ.range.isNotEmpty ? occ.range[0] : 0;
+        final endLine =
+            occ.enclosingRange.length > 2 ? occ.enclosingRange[2] : startLine;
+        definitionsInFile.add((
+          symbol: occ.symbol,
+          startLine: startLine,
+          endLine: endLine,
+        ));
+      }
+    }
+
+    // Second pass: build call graph
+    for (final occ in doc.occurrences) {
+      final isReference =
+          (occ.symbolRoles & scip.SymbolRole.Definition.value) == 0;
+      if (!isReference) continue;
+
+      final refLine = occ.range.isNotEmpty ? occ.range[0] : 0;
+      final referencedSymbol = occ.symbol;
+
+      for (final def in definitionsInFile) {
+        if (refLine >= def.startLine && refLine <= def.endLine) {
+          _callsIndex.putIfAbsent(def.symbol, () => {}).add(referencedSymbol);
+          _callersIndex.putIfAbsent(referencedSymbol, () => {}).add(def.symbol);
+          break;
+        }
+      }
     }
   }
 
@@ -136,8 +222,12 @@ class ScipIndex {
     final oldDoc = _documentIndex.remove(path);
     if (oldDoc == null) return;
 
+    // Collect symbols defined in this file for call graph cleanup
+    final symbolsInFile = <String>{};
+
     // Remove symbols defined in this file
     for (final sym in oldDoc.symbols) {
+      symbolsInFile.add(sym.symbol);
       _symbolIndex.remove(sym.symbol);
 
       // Remove from parent's children
@@ -150,6 +240,25 @@ class ScipIndex {
     // Remove occurrences from this file
     for (final refs in _referenceIndex.values) {
       refs.removeWhere((occ) => occ.file == path);
+    }
+
+    // Clean up call graph
+    for (final sym in symbolsInFile) {
+      // Remove from callsIndex
+      final calls = _callsIndex.remove(sym);
+      if (calls != null) {
+        for (final called in calls) {
+          _callersIndex[called]?.remove(sym);
+        }
+      }
+
+      // Remove from callersIndex
+      final callers = _callersIndex.remove(sym);
+      if (callers != null) {
+        for (final caller in callers) {
+          _callsIndex[caller]?.remove(sym);
+        }
+      }
     }
   }
 
@@ -216,6 +325,11 @@ class ScipIndex {
   Iterable<SymbolInfo> membersOf(String symbolId) {
     final children = _childIndex[symbolId] ?? [];
     return children.map((id) => _symbolIndex[id]).whereType<SymbolInfo>();
+  }
+
+  /// Get child symbol IDs of a class/type (raw IDs).
+  List<String> getChildren(String symbolId) {
+    return _childIndex[symbolId] ?? [];
   }
 
   /// Get supertypes of a class.
@@ -288,7 +402,40 @@ class ScipIndex {
         'files': _documentIndex.length,
         'symbols': _symbolIndex.length,
         'references': _referenceIndex.values.fold(0, (a, b) => a + b.length),
+        'callEdges': _callsIndex.values.fold(0, (a, b) => a + b.length),
       };
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // CALL GRAPH
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /// Get symbols that the given symbol calls/references.
+  Iterable<SymbolInfo> getCalls(String symbolId) {
+    final called = _callsIndex[symbolId];
+    if (called == null) return [];
+    return called
+        .map((id) => _symbolIndex[id])
+        .whereType<SymbolInfo>();
+  }
+
+  /// Get symbols that call/reference the given symbol.
+  Iterable<SymbolInfo> getCallers(String symbolId) {
+    final callers = _callersIndex[symbolId];
+    if (callers == null) return [];
+    return callers
+        .map((id) => _symbolIndex[id])
+        .whereType<SymbolInfo>();
+  }
+
+  /// Get the full call graph for a symbol (calls + callers).
+  ({List<SymbolInfo> calls, List<SymbolInfo> callers}) getCallGraph(
+    String symbolId,
+  ) {
+    return (
+      calls: getCalls(symbolId).toList(),
+      callers: getCallers(symbolId).toList(),
+    );
+  }
 
   /// Search for a pattern in source files.
   ///

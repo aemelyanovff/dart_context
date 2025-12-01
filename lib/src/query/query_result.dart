@@ -677,6 +677,237 @@ class SymbolReferences {
   final String? container;
 }
 
+/// Result of a call graph query.
+class CallGraphResult extends QueryResult {
+  const CallGraphResult({
+    required this.symbol,
+    required this.direction,
+    required this.connections,
+  });
+
+  final SymbolInfo symbol;
+  final String direction; // "calls" or "callers"
+  final List<SymbolInfo> connections;
+
+  @override
+  bool get isEmpty => connections.isEmpty;
+
+  @override
+  int get count => connections.length;
+
+  @override
+  String toText() {
+    if (connections.isEmpty) {
+      return direction == 'calls'
+          ? '${symbol.name} does not call any symbols.'
+          : '${symbol.name} is not called by any symbols.';
+    }
+
+    final buffer = StringBuffer();
+    final verb = direction == 'calls' ? 'calls' : 'is called by';
+    buffer.writeln('## ${symbol.name} $verb ${connections.length} symbols:');
+    buffer.writeln('');
+
+    // Group by kind
+    final byKind = <String, List<SymbolInfo>>{};
+    for (final conn in connections) {
+      final kind = conn.kindString;
+      byKind.putIfAbsent(kind, () => []).add(conn);
+    }
+
+    for (final entry in byKind.entries) {
+      buffer.writeln('### ${entry.key}s (${entry.value.length})');
+      for (final sym in entry.value) {
+        final file = sym.file ?? 'external';
+        buffer.writeln('- `${sym.name}` ($file)');
+      }
+      buffer.writeln('');
+    }
+
+    return buffer.toString().trimRight();
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'call_graph',
+        'symbol': symbol.name,
+        'direction': direction,
+        'count': connections.length,
+        'connections': connections
+            .map(
+              (c) => {
+                'name': c.name,
+                'kind': c.kindString,
+                'file': c.file,
+              },
+            )
+            .toList(),
+      };
+}
+
+/// Result of imports/exports analysis.
+class ImportsResult extends QueryResult {
+  const ImportsResult({
+    required this.file,
+    required this.imports,
+    required this.exports,
+  });
+
+  final String file;
+  final List<String> imports;
+  final List<String> exports;
+
+  @override
+  bool get isEmpty => imports.isEmpty && exports.isEmpty;
+
+  @override
+  int get count => imports.length + exports.length;
+
+  @override
+  String toText() {
+    final buffer = StringBuffer();
+    buffer.writeln('## $file');
+    buffer.writeln('');
+
+    if (imports.isNotEmpty) {
+      buffer.writeln('### Imports (${imports.length})');
+      for (final imp in imports) {
+        buffer.writeln('- $imp');
+      }
+      buffer.writeln('');
+    }
+
+    if (exports.isNotEmpty) {
+      buffer.writeln('### Exports (${exports.length})');
+      for (final exp in exports) {
+        buffer.writeln('- $exp');
+      }
+      buffer.writeln('');
+    }
+
+    if (isEmpty) {
+      buffer.writeln('No imports or exports found.');
+    }
+
+    return buffer.toString().trimRight();
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'imports',
+        'file': file,
+        'imports': imports,
+        'exports': exports,
+      };
+}
+
+/// Result of dependencies analysis.
+class DependenciesResult extends QueryResult {
+  const DependenciesResult({
+    required this.symbol,
+    required this.dependencies,
+  });
+
+  final SymbolInfo symbol;
+  final List<SymbolInfo> dependencies;
+
+  @override
+  bool get isEmpty => dependencies.isEmpty;
+
+  @override
+  int get count => dependencies.length;
+
+  @override
+  String toText() {
+    if (dependencies.isEmpty) {
+      return '${symbol.name} has no dependencies.';
+    }
+
+    final buffer = StringBuffer();
+    buffer.writeln('## Dependencies of ${symbol.name} (${dependencies.length})');
+    buffer.writeln('');
+
+    // Group by kind
+    final byKind = <String, List<SymbolInfo>>{};
+    for (final dep in dependencies) {
+      final kind = dep.kindString;
+      byKind.putIfAbsent(kind, () => []).add(dep);
+    }
+
+    for (final entry in byKind.entries) {
+      buffer.writeln('### ${entry.key}s (${entry.value.length})');
+      for (final sym in entry.value) {
+        final file = sym.file ?? 'external';
+        buffer.writeln('- `${sym.name}` ($file)');
+      }
+      buffer.writeln('');
+    }
+
+    return buffer.toString().trimRight();
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'dependencies',
+        'symbol': symbol.name,
+        'count': dependencies.length,
+        'dependencies': dependencies
+            .map(
+              (d) => {
+                'name': d.name,
+                'kind': d.kindString,
+                'file': d.file,
+              },
+            )
+            .toList(),
+      };
+}
+
+/// Result of a pipeline query (aggregation of multiple results).
+class PipelineResult extends QueryResult {
+  const PipelineResult({
+    required this.action,
+    required this.results,
+  });
+
+  final String action;
+  final List<QueryResult> results;
+
+  @override
+  bool get isEmpty => results.isEmpty || results.every((r) => r.isEmpty);
+
+  @override
+  int get count => results.fold(0, (sum, r) => sum + r.count);
+
+  @override
+  String toText() {
+    if (results.isEmpty) {
+      return 'Pipeline produced no results.';
+    }
+
+    final buffer = StringBuffer();
+    buffer.writeln('## Pipeline Results: $action (${results.length} queries)');
+    buffer.writeln('');
+
+    for (var i = 0; i < results.length; i++) {
+      buffer.writeln('### Result ${i + 1}');
+      buffer.writeln(results[i].toText());
+      buffer.writeln('');
+    }
+
+    return buffer.toString().trimRight();
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'pipeline',
+        'action': action,
+        'count': results.length,
+        'totalCount': count,
+        'results': results.map((r) => r.toJson()).toList(),
+      };
+}
+
 /// Result of a grep search across source files.
 class GrepResult extends QueryResult {
   const GrepResult({

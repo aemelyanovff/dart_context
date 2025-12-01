@@ -102,6 +102,11 @@ dart_context --no-cache stats
 | `find <pattern>` | Search for symbols matching pattern |
 | `which <symbol>` | Show all matches (for disambiguation) |
 | `grep <pattern>` | Search in source code (like grep) |
+| `calls <symbol>` | What does this symbol call? |
+| `callers <symbol>` | What calls this symbol? |
+| `imports <file>` | What does this file import? |
+| `exports <path>` | What does this file/directory export? |
+| `deps <symbol>` | Dependencies of a symbol |
 | `files` | List all indexed files |
 | `stats` | Get index statistics |
 
@@ -171,6 +176,20 @@ find ~respnse              # Finds "response"
 
 # Case-insensitive search
 grep /error/i              # Matches "Error", "ERROR", "error"
+
+# Call graph queries
+calls AuthService.login    # What does login() call?
+callers validateUser       # What calls validateUser()?
+deps AuthService           # All dependencies of AuthService
+
+# Import/export analysis
+imports lib/auth/service.dart  # What does this file import?
+exports lib/auth/              # What does this directory export?
+
+# Pipe queries (chain multiple queries)
+find Auth* | refs          # Find references for all Auth* symbols
+members MyClass | source   # Get source for all members
+find *Service | calls      # What do all services call?
 ```
 
 ## Architecture

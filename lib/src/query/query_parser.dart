@@ -12,6 +12,11 @@
 /// - `find <pattern> [kind:<kind>] [in:<path>]` - Search symbols
 /// - `which <symbol>` - Show all matches for disambiguation
 /// - `grep <pattern> [in:<path>] [-i] [-C:n]` - Search in source code (like grep)
+/// - `calls <symbol>` - What does this symbol call?
+/// - `callers <symbol>` - What calls this symbol?
+/// - `imports <file>` - What does this file import?
+/// - `exports <file>` - What does this file/directory export?
+/// - `deps <symbol>` - Dependencies of a symbol
 ///
 /// Qualified names:
 /// - `refs MyClass.login` - References to login method in MyClass
@@ -28,13 +33,17 @@
 /// - `/auth/i` - Regex pattern (between slashes, flags after)
 /// - `~login` - Fuzzy match (typo-tolerant)
 ///
+/// Pipe/batch queries:
+/// - `find Auth* | refs` - Find refs for all matching symbols
+/// - `members MyClass | source` - Get source for all members
+///
 /// Examples:
 /// - `def AuthRepository`
 /// - `refs MyClass.login`
-/// - `which login`
-/// - `grep /TODO|FIXME/ in:lib/`
-/// - `grep ~authentcate`  # fuzzy match for "authenticate"
-/// - `find Auth* kind:class`
+/// - `calls AuthService.login`
+/// - `callers validateUser`
+/// - `imports lib/auth/service.dart`
+/// - `find Auth* kind:class | members`
 library;
 
 // ignore: implementation_imports
@@ -171,6 +180,11 @@ class ScipQuery {
       'find' || 'search' => QueryAction.find,
       'which' || 'disambiguate' => QueryAction.which,
       'grep' || 'rg' => QueryAction.grep,
+      'calls' || 'callees' => QueryAction.calls,
+      'callers' || 'calledby' => QueryAction.callers,
+      'imports' => QueryAction.imports,
+      'exports' => QueryAction.exports,
+      'deps' || 'dependencies' => QueryAction.deps,
       'files' => QueryAction.files,
       'stats' => QueryAction.stats,
       _ => throw FormatException('Unknown action: $action'),
@@ -272,6 +286,21 @@ enum QueryAction {
 
   /// Search in source code (like grep).
   grep,
+
+  /// What does this symbol call?
+  calls,
+
+  /// What calls this symbol?
+  callers,
+
+  /// What does this file import?
+  imports,
+
+  /// What does this file/directory export?
+  exports,
+
+  /// Dependencies of a symbol.
+  deps,
 
   /// List all indexed files.
   files,
