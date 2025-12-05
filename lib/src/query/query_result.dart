@@ -1145,3 +1145,92 @@ class GrepMatch {
 
   int get startLine => line - contextBefore;
 }
+
+/// Result for grep with -l flag (files only).
+///
+/// Only shows filenames that contain matches, like `grep -l`.
+class GrepFilesResult extends QueryResult {
+  const GrepFilesResult({
+    required this.pattern,
+    required this.files,
+  });
+
+  final String pattern;
+  final List<String> files;
+
+  @override
+  bool get isEmpty => files.isEmpty;
+
+  @override
+  int get count => files.length;
+
+  @override
+  String toText() {
+    if (files.isEmpty) {
+      return 'No files match pattern "$pattern".';
+    }
+
+    final buffer = StringBuffer();
+    buffer.writeln('## Files matching: $pattern (${files.length} files)');
+    buffer.writeln('');
+    for (final file in files) {
+      buffer.writeln(file);
+    }
+    return buffer.toString();
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'grep_files',
+        'pattern': pattern,
+        'files': files,
+        'count': files.length,
+      };
+}
+
+/// Result for grep with -c flag (count only).
+///
+/// Shows count of matches per file, like `grep -c`.
+class GrepCountResult extends QueryResult {
+  const GrepCountResult({
+    required this.pattern,
+    required this.fileCounts,
+  });
+
+  final String pattern;
+  final Map<String, int> fileCounts;
+
+  @override
+  bool get isEmpty => fileCounts.isEmpty;
+
+  @override
+  int get count => fileCounts.values.fold(0, (a, b) => a + b);
+
+  @override
+  String toText() {
+    if (fileCounts.isEmpty) {
+      return 'No matches found for pattern "$pattern".';
+    }
+
+    final buffer = StringBuffer();
+    buffer.writeln('## Grep count: $pattern ($count total matches)');
+    buffer.writeln('');
+
+    // Sort by count descending
+    final sorted = fileCounts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    for (final entry in sorted) {
+      buffer.writeln('${entry.value.toString().padLeft(6)}: ${entry.key}');
+    }
+    return buffer.toString();
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'grep_count',
+        'pattern': pattern,
+        'fileCounts': fileCounts,
+        'totalCount': count,
+      };
+}

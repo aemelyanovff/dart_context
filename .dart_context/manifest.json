@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "createdAt": "2025-12-05T20:35:07.061359",
+  "createdAt": "2025-12-05T20:45:55.338646",
   "projectRoot": "/Users/wenkaifan/Dev/dart_context",
   "fileHashes": {
     "test/integration/incremental_indexer_test.dart": "6bd65564a1baf68e0a065d74a0296ad377927206e2fc07f3fa8300599309d1c0",
@@ -25,11 +25,11 @@
     "lib/src/adapters/hologram_adapter.dart": "2d1bea2bcd8cece8b53b43b1869a5471f4f568fd77902ec4692aa2353c7f77f7",
     "lib/src/adapters/analyzer_adapter.dart": "26db35d2e2cfcb4fc0d3b12b75cf0574344b56c799c598e50f7c34922b33f247",
     "lib/src/index/index_cache.dart": "5daabed8de8558eada8537a9c885d7b8bcbc86fbfb01a9b80fb1ea0083a8f4aa",
-    "lib/src/index/scip_index.dart": "0e391683dc68ea85a4cbd781191b81897e157ad719301241c8012804f8243cd1",
+    "lib/src/index/scip_index.dart": "4f470eee82f065e52f96751f8bb5be36206133f0b18aac424c222ae2fff9af2a",
     "lib/src/index/incremental_indexer.dart": "a5ecdf9bca9cb8255fceb1af608e187f67c924754d2e682f26c9763b6ea7711b",
-    "lib/src/query/query_parser.dart": "8d47ed52078a1a601692fb838cc4564cffe84f6adb02e288af32609f1970aa8b",
-    "lib/src/query/query_executor.dart": "f83594e7fa5f78cd14cd4edf2c2a334c79ae5a88d4b5bf7d6ab3b24be14b2eb1",
-    "lib/src/query/query_result.dart": "034077e05b2fd8c14d5634960628243000b23fb5da2d8c26dc85d88fe52f6408",
+    "lib/src/query/query_parser.dart": "eab932442cd8006fca0af9720a40af0871d6e43c00a89862667dad274cba46b3",
+    "lib/src/query/query_executor.dart": "2ed53c7f30802bea5e93132d207ce1e2ddda8dc88593bc2913206ef753caabd3",
+    "lib/src/query/query_result.dart": "18f94499d9e41c302a29c2a1ae028817ae0510b714f4ad8a248a17139f181faa",
     "lib/src/analyzer/signature_visitor.dart": "6be1e557d0da7531adb79d999189efd884d128427c40363d9e48a6cf5ca5803b"
   }
 }

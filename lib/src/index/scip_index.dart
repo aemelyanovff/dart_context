@@ -474,10 +474,21 @@ class ScipIndex {
   /// Search for a pattern in source files.
   ///
   /// Returns matches with file, line, and context.
+  ///
+  /// Parameters:
+  /// - [pattern]: The regex pattern to search for
+  /// - [pathFilter]: Only search in files starting with this path
+  /// - [linesBefore]: Number of context lines before match (default 2)
+  /// - [linesAfter]: Number of context lines after match (default 2)
+  /// - [invertMatch]: If true, return lines that DON'T match
+  /// - [maxPerFile]: Maximum matches per file (null for unlimited)
   Future<List<GrepMatchData>> grep(
     RegExp pattern, {
     String? pathFilter,
-    int contextLines = 2,
+    int linesBefore = 2,
+    int linesAfter = 2,
+    bool invertMatch = false,
+    int? maxPerFile,
   }) async {
     final results = <GrepMatchData>[];
 
@@ -491,47 +502,63 @@ class ScipIndex {
 
       final content = await file.readAsString();
       final lines = content.split('\n');
+      var fileMatchCount = 0;
 
-      // Find all matches
+      // Find all matches (or non-matches for -v)
       for (var lineIdx = 0; lineIdx < lines.length; lineIdx++) {
         final line = lines[lineIdx];
-        final matches = pattern.allMatches(line);
+        final hasMatch = pattern.hasMatch(line);
 
-        for (final match in matches) {
-          // Get context lines
-          final startCtx = (lineIdx - contextLines).clamp(0, lines.length);
-          final endCtx = (lineIdx + contextLines + 1).clamp(0, lines.length);
-          final context = lines.sublist(startCtx, endCtx);
+        // For invert match, we want lines that DON'T match
+        final shouldInclude = invertMatch ? !hasMatch : hasMatch;
+        if (!shouldInclude) continue;
 
-          // Find containing symbol (optional enhancement)
-          String? symbolContext;
-          final fileSymbols = this.symbolsInFile(path).toList();
-          for (final sym in fileSymbols) {
-            final def = findDefinition(sym.symbol);
-            if (def != null &&
-                def.line <= lineIdx &&
-                (def.enclosingEndLine ?? def.line + 100) >= lineIdx) {
-              symbolContext = sym.name;
-              break;
-            }
+        // Check max per file limit
+        if (maxPerFile != null && fileMatchCount >= maxPerFile) break;
+        fileMatchCount++;
+
+        // Get context lines (separate before/after)
+        final startCtx = (lineIdx - linesBefore).clamp(0, lines.length);
+        final endCtx = (lineIdx + linesAfter + 1).clamp(0, lines.length);
+        final context = lines.sublist(startCtx, endCtx);
+
+        // For invert match, the "match" is the whole line
+        final matchText = invertMatch ? line : _getFirstMatch(pattern, line);
+
+        // Find containing symbol
+        String? symbolContext;
+        final fileSymbols = this.symbolsInFile(path).toList();
+        for (final sym in fileSymbols) {
+          final def = findDefinition(sym.symbol);
+          if (def != null &&
+              def.line <= lineIdx &&
+              (def.enclosingEndLine ?? def.line + 100) >= lineIdx) {
+            symbolContext = sym.name;
+            break;
           }
-
-          results.add(
-            GrepMatchData(
-              file: path,
-              line: lineIdx,
-              column: match.start,
-              matchText: match.group(0) ?? '',
-              contextLines: context,
-              contextBefore: lineIdx - startCtx,
-              symbolContext: symbolContext,
-            ),
-          );
         }
+
+        results.add(
+          GrepMatchData(
+            file: path,
+            line: lineIdx,
+            column: invertMatch ? 0 : pattern.firstMatch(line)?.start ?? 0,
+            matchText: matchText,
+            contextLines: context,
+            contextBefore: lineIdx - startCtx,
+            symbolContext: symbolContext,
+          ),
+        );
       }
     }
 
     return results;
+  }
+
+  /// Get the first match text from a line.
+  String _getFirstMatch(RegExp pattern, String line) {
+    final match = pattern.firstMatch(line);
+    return match?.group(0) ?? line;
   }
 
   /// Search for symbols using fuzzy matching.

@@ -234,8 +234,20 @@ base mixin DartContextSupport on ToolsSupport, RootsTrackingSupport {
 |--------|-------------|---------|
 | `kind:<type>` | Symbol kind | `find * kind:class` |
 | `in:<path>` | File path | `find * in:lib/auth/` |
+
+## Grep Flags
+
+| Flag | Description | Example |
+|------|-------------|---------|
 | `-i` | Case insensitive | `grep error -i` |
+| `-v` | Invert match (non-matching) | `grep TODO -v` |
+| `-w` | Word boundary | `grep test -w` |
+| `-l` | Files only | `grep TODO -l` |
+| `-c` | Count per file | `grep error -c` |
 | `-C:n` | Context lines | `grep TODO -C:3` |
+| `-A:n` | Lines after | `grep error -A:5` |
+| `-B:n` | Lines before | `grep error -B:2` |
+| `-m:n` | Max matches | `grep TODO -m:10` |
 
 Kinds: class, method, function, field, enum, mixin, extension, getter, setter, constructor
 

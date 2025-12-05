@@ -939,15 +939,48 @@ class QueryExecutor {
   /// Search in source code (like grep).
   Future<QueryResult> _grep(ScipQuery query) async {
     final pattern = query.parsedPattern;
-    final regex = pattern.toRegExp();
-    final contextLines = query.contextLines;
+
+    // Handle word boundary flag (-w)
+    RegExp regex;
+    if (query.wordBoundary) {
+      // Wrap pattern in word boundaries
+      final wordPattern = r'\b' + pattern.pattern + r'\b';
+      regex = RegExp(wordPattern, caseSensitive: pattern.caseSensitive);
+    } else {
+      regex = pattern.toRegExp();
+    }
+
     final pathFilter = query.pathFilter;
 
     final matches = await index.grep(
       regex,
       pathFilter: pathFilter,
-      contextLines: contextLines,
+      linesBefore: query.linesBefore,
+      linesAfter: query.linesAfter,
+      invertMatch: query.invertMatch,
+      maxPerFile: query.maxCount,
     );
+
+    // Handle files-only output (-l)
+    if (query.filesOnly) {
+      final files = matches.map((m) => m.file).toSet().toList()..sort();
+      return GrepFilesResult(
+        pattern: query.target,
+        files: files,
+      );
+    }
+
+    // Handle count-only output (-c)
+    if (query.countOnly) {
+      final counts = <String, int>{};
+      for (final match in matches) {
+        counts[match.file] = (counts[match.file] ?? 0) + 1;
+      }
+      return GrepCountResult(
+        pattern: query.target,
+        fileCounts: counts,
+      );
+    }
 
     final grepMatches = matches.map((m) {
       return GrepMatch(

@@ -26,8 +26,17 @@
 /// Filters (for `find` and `grep`):
 /// - `kind:class` - Filter by symbol kind
 /// - `in:lib/` - Filter by file path prefix
-/// - `-i` - Case insensitive (grep)
-/// - `-C:3` - Context lines (grep)
+///
+/// Grep flags:
+/// - `-i` - Case insensitive
+/// - `-v` - Invert match (show non-matching lines)
+/// - `-w` - Word boundary (match whole words)
+/// - `-l` - Files only (just show filenames)
+/// - `-c` - Count only (count matches per file)
+/// - `-C:n` - Context lines (before and after)
+/// - `-A:n` - Lines after match
+/// - `-B:n` - Lines before match
+/// - `-m:n` - Max matches (stop after n matches)
 ///
 /// Pattern syntax:
 /// - `Auth*` - Glob pattern (wildcard)
@@ -223,14 +232,52 @@ class ScipQuery {
   String? get pathFilter => filters['in'];
 
   /// Get context lines for grep (-C:n).
-  int get contextLines {
+  /// Returns null if -A or -B are specified separately.
+  int? get contextLines {
+    // If -A or -B specified, don't use -C
+    if (filters.containsKey('A') || filters.containsKey('B')) {
+      return null;
+    }
     final value = filters['C'] ?? filters['context'];
     if (value == null) return 2; // Default
     return int.tryParse(value) ?? 2;
   }
 
+  /// Get lines after match (-A:n).
+  int get linesAfter {
+    final value = filters['A'] ?? filters['after'];
+    if (value != null) return int.tryParse(value) ?? 2;
+    return contextLines ?? 2;
+  }
+
+  /// Get lines before match (-B:n).
+  int get linesBefore {
+    final value = filters['B'] ?? filters['before'];
+    if (value != null) return int.tryParse(value) ?? 2;
+    return contextLines ?? 2;
+  }
+
   /// Check if case insensitive (-i).
   bool get caseInsensitive => filters.containsKey('i');
+
+  /// Check if invert match (-v).
+  bool get invertMatch => filters.containsKey('v');
+
+  /// Check if word boundary match (-w).
+  bool get wordBoundary => filters.containsKey('w');
+
+  /// Check if files-only output (-l).
+  bool get filesOnly => filters.containsKey('l');
+
+  /// Check if count-only output (-c).
+  bool get countOnly => filters.containsKey('c');
+
+  /// Get max matches (-m:n). Returns null for unlimited.
+  int? get maxCount {
+    final value = filters['m'] ?? filters['max'];
+    if (value == null) return null;
+    return int.tryParse(value);
+  }
 
   /// Parse the target as a pattern.
   ParsedPattern get parsedPattern => ParsedPattern.parse(
