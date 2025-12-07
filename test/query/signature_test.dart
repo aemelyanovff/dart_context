@@ -143,6 +143,30 @@ void initialize() {
       expect(json['file'], isA<String>());
       expect(json['line'], isA<int>());
     });
+
+    test('sig class signature has proper newlines and indentation', () async {
+      final result = await context.query('sig AuthService');
+
+      expect(result, isA<SignatureResult>());
+      final sigResult = result as SignatureResult;
+      final sig = sigResult.signature;
+
+      // Should have newlines between members
+      expect(sig, contains('\n'));
+
+      // Each member should be on its own line (indented)
+      final lines = sig.split('\n');
+      expect(lines.length, greaterThan(3)); // class + members + closing brace
+
+      // Should have class declaration on first line
+      expect(lines.first, contains('class AuthService'));
+
+      // Members should be indented
+      final memberLines = lines.where((l) => l.trim().isNotEmpty && !l.startsWith('class') && l != '}');
+      for (final line in memberLines) {
+        expect(line, startsWith('  ')); // 2-space indent
+      }
+    });
   });
 }
 

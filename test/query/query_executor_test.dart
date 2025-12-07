@@ -194,6 +194,90 @@ void main() {
         );
         expect(result.isEmpty, isTrue);
       });
+
+      test('deduplicates references by file+line', () async {
+        // Add duplicate references at the same location
+        index.updateDocument(
+          scip.Document(
+            relativePath: 'lib/test/duplicate_refs.dart',
+            language: 'Dart',
+            symbols: [
+              scip.SymbolInformation(
+                symbol: 'test lib/test/duplicate_refs.dart/DupTest#',
+                kind: scip.SymbolInformation_Kind.Class,
+                displayName: 'DupTest',
+              ),
+              scip.SymbolInformation(
+                symbol: 'test lib/test/duplicate_refs.dart/DupTest#`<constructor>`().',
+                kind: scip.SymbolInformation_Kind.Constructor,
+                displayName: 'DupTest',
+              ),
+            ],
+            occurrences: [
+              scip.Occurrence(
+                symbol: 'test lib/test/duplicate_refs.dart/DupTest#',
+                range: [1, 6, 1, 13],
+                symbolRoles: scip.SymbolRole.Definition.value,
+              ),
+              scip.Occurrence(
+                symbol: 'test lib/test/duplicate_refs.dart/DupTest#`<constructor>`().',
+                range: [2, 2, 2, 9],
+                symbolRoles: scip.SymbolRole.Definition.value,
+              ),
+            ],
+          ),
+        );
+
+        // Add a file with multiple references to DupTest
+        index.updateDocument(
+          scip.Document(
+            relativePath: 'lib/test/use_dup.dart',
+            language: 'Dart',
+            symbols: [],
+            occurrences: [
+              // Reference to the class
+              scip.Occurrence(
+                symbol: 'test lib/test/duplicate_refs.dart/DupTest#',
+                range: [5, 10, 5, 17],
+                symbolRoles: 0, // not a definition
+              ),
+              // Another reference to the class on the same line
+              scip.Occurrence(
+                symbol: 'test lib/test/duplicate_refs.dart/DupTest#',
+                range: [5, 20, 5, 27],
+                symbolRoles: 0,
+              ),
+              // Reference to constructor (same line)
+              scip.Occurrence(
+                symbol: 'test lib/test/duplicate_refs.dart/DupTest#`<constructor>`().',
+                range: [5, 30, 5, 37],
+                symbolRoles: 0,
+              ),
+              // Reference on different line
+              scip.Occurrence(
+                symbol: 'test lib/test/duplicate_refs.dart/DupTest#',
+                range: [10, 5, 10, 12],
+                symbolRoles: 0,
+              ),
+            ],
+          ),
+        );
+
+        final result = await executor.execute('refs DupTest');
+        expect(
+          result,
+          anyOf(isA<ReferencesResult>(), isA<AggregatedReferencesResult>()),
+        );
+
+        // Should deduplicate - only 2 unique lines (5 and 10)
+        if (result is ReferencesResult) {
+          final uniqueLines = result.references
+              .map((r) => '${r.location.file}:${r.location.line}')
+              .toSet();
+          expect(uniqueLines.length, equals(result.references.length),
+              reason: 'References should be deduplicated by file+line');
+        }
+      });
     });
 
     group('members', () {
@@ -208,6 +292,59 @@ void main() {
       test('returns not found for non-class symbol', () async {
         final result = await executor.execute('members formatDate');
         expect(result, isA<NotFoundResult>());
+      });
+
+      test('excludes parameters from members', () async {
+        // Add class with method parameters
+        index.updateDocument(
+          scip.Document(
+            relativePath: 'lib/test/with_params.dart',
+            language: 'Dart',
+            symbols: [
+              scip.SymbolInformation(
+                symbol: 'test lib/test/with_params.dart/TestClass#',
+                kind: scip.SymbolInformation_Kind.Class,
+                displayName: 'TestClass',
+              ),
+              scip.SymbolInformation(
+                symbol: 'test lib/test/with_params.dart/TestClass#doSomething().',
+                kind: scip.SymbolInformation_Kind.Method,
+                displayName: 'doSomething',
+              ),
+              scip.SymbolInformation(
+                symbol: 'test lib/test/with_params.dart/TestClass#doSomething().(param1)',
+                kind: scip.SymbolInformation_Kind.Parameter,
+                displayName: 'param1',
+              ),
+              scip.SymbolInformation(
+                symbol: 'test lib/test/with_params.dart/TestClass#doSomething().(param2)',
+                kind: scip.SymbolInformation_Kind.Parameter,
+                displayName: 'param2',
+              ),
+            ],
+            occurrences: [
+              scip.Occurrence(
+                symbol: 'test lib/test/with_params.dart/TestClass#',
+                range: [1, 6, 1, 15],
+                symbolRoles: scip.SymbolRole.Definition.value,
+              ),
+              scip.Occurrence(
+                symbol: 'test lib/test/with_params.dart/TestClass#doSomething().',
+                range: [3, 7, 3, 18],
+                symbolRoles: scip.SymbolRole.Definition.value,
+              ),
+            ],
+          ),
+        );
+
+        final result = await executor.execute('members TestClass');
+        expect(result, isA<MembersResult>());
+
+        final membersResult = result as MembersResult;
+        // Should have the method but not the parameters
+        final kinds = membersResult.members.map((m) => m.kindString).toList();
+        expect(kinds, isNot(contains('parameter')));
+        expect(kinds, contains('method'));
       });
     });
 
