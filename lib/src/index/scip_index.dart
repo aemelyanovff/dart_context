@@ -893,31 +893,28 @@ class ScipIndex {
   ///
   /// SCIP symbols look like:
   /// `scip-dart pub my_package 1.0.0 lib/foo.dart/MyClass#myMethod().`
+  ///
+  /// For a method like `MyClass#myMethod().`, the parent is `MyClass#`.
+  /// For a class like `lib/foo.dart/MyClass#`, the parent is `lib/foo.dart/` (the file).
   static String? _extractParentSymbol(String symbol) {
-    // Find the last descriptor marker
-    final lastDot = symbol.lastIndexOf('.');
-    final lastHash = symbol.lastIndexOf('#');
-    final lastParen = symbol.lastIndexOf('(');
     final lastSlash = symbol.lastIndexOf('/');
+    final lastHash = symbol.lastIndexOf('#');
 
-    // Find the rightmost descriptor start that's after the file path
-    final descriptorStarts = [lastDot, lastHash, lastParen]
-        .where((i) => i > lastSlash && i > 0)
-        .toList();
+    // Method of a class: Parent is everything up to and including #
+    // e.g., `pkg/MyClass#method().` → `pkg/MyClass#`
+    if (lastHash > lastSlash) {
+      // Check if there's content after the #
+      final afterHash = symbol.substring(lastHash + 1);
+      if (afterHash.isNotEmpty) {
+        // This is a member of the class, parent is the class
+        return symbol.substring(0, lastHash + 1);
+      }
+    }
 
-    if (descriptorStarts.isEmpty) return null;
-
-    final cutPoint = descriptorStarts.reduce((a, b) => a > b ? a : b);
-
-    // The parent is everything before the last descriptor
-    // But we need to find the second-to-last descriptor
-    final parentEnd = symbol.substring(0, cutPoint).lastIndexOf(
-          RegExp(r'[.#(]'),
-        );
-
-    if (parentEnd <= lastSlash) return null;
-
-    return symbol.substring(0, parentEnd + 1);
+    // Class in a file: Parent is the file path
+    // e.g., `pkg/MyClass#` → `pkg/` (or null if we only care about class members)
+    // For now, we return null for top-level symbols (classes)
+    return null;
   }
 }
 

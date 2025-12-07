@@ -402,3 +402,4 @@ class BatchIndexResult {
   int get failed => results.where((r) => !r.success && !r.skipped).length;
 }
 
+

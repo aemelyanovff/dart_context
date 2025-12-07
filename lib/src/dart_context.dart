@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'index/incremental_indexer.dart';
+import 'index/index_registry.dart';
 import 'index/scip_index.dart';
 import 'query/query_executor.dart';
 import 'query/query_parser.dart';
@@ -40,11 +41,14 @@ class DartContext {
   DartContext._({
     required IncrementalScipIndexer indexer,
     required QueryExecutor executor,
+    IndexRegistry? registry,
   })  : _indexer = indexer,
-        _executor = executor;
+        _executor = executor,
+        _registry = registry;
 
   final IncrementalScipIndexer _indexer;
-  final QueryExecutor _executor;
+  QueryExecutor _executor;
+  IndexRegistry? _registry;
 
   /// Open a Dart project and create a context.
   ///
@@ -54,17 +58,28 @@ class DartContext {
   /// 3. Create analyzer context
   /// 4. Perform incremental indexing of changed files
   /// 5. Start file watching (if [watch] is true)
+  /// 6. Load pre-indexed dependencies (if [loadDependencies] is true)
   ///
   /// Set [useCache] to false to force a full re-index.
+  ///
+  /// Set [loadDependencies] to true to enable cross-package queries
+  /// (requires pre-indexed dependencies via `index-sdk` or `index-deps`).
   ///
   /// Example:
   /// ```dart
   /// final context = await DartContext.open('/path/to/project');
+  ///
+  /// // With cross-package queries enabled:
+  /// final context = await DartContext.open(
+  ///   '/path/to/project',
+  ///   loadDependencies: true,
+  /// );
   /// ```
   static Future<DartContext> open(
     String projectPath, {
     bool watch = true,
     bool useCache = true,
+    bool loadDependencies = false,
   }) async {
     final indexer = await IncrementalScipIndexer.open(
       projectPath,
@@ -72,14 +87,23 @@ class DartContext {
       useCache: useCache,
     );
 
+    // Create registry for cross-package queries if requested
+    IndexRegistry? registry;
+    if (loadDependencies) {
+      registry = IndexRegistry(projectIndex: indexer.index);
+      await registry.loadDependenciesFrom(projectPath);
+    }
+
     final executor = QueryExecutor(
       indexer.index,
       signatureProvider: indexer.getSignature,
+      registry: registry,
     );
 
     return DartContext._(
       indexer: indexer,
       executor: executor,
+      registry: registry,
     );
   }
 
@@ -136,10 +160,48 @@ class DartContext {
   /// Get index statistics.
   Map<String, int> get stats => _indexer.index.stats;
 
+  /// Whether cross-package queries are enabled.
+  bool get hasDependencies => _registry != null;
+
+  /// The index registry for cross-package queries (if enabled).
+  IndexRegistry? get registry => _registry;
+
+  /// Load pre-indexed dependencies for cross-package queries.
+  ///
+  /// Call this to enable cross-package queries after opening a context
+  /// without the [loadDependencies] option:
+  ///
+  /// ```dart
+  /// final context = await DartContext.open('/path/to/project');
+  /// await context.loadDependencies(); // Enable cross-package queries later
+  /// ```
+  ///
+  /// Returns the number of packages loaded.
+  Future<int> loadDependencies() async {
+    if (_registry != null) {
+      // Already have a registry, just reload
+      return _registry!.loadDependenciesFrom(projectRoot);
+    }
+
+    // Create new registry
+    _registry = IndexRegistry(projectIndex: _indexer.index);
+    final count = await _registry!.loadDependenciesFrom(projectRoot);
+
+    // Recreate executor with the registry for cross-package queries
+    _executor = QueryExecutor(
+      _indexer.index,
+      signatureProvider: _indexer.getSignature,
+      registry: _registry,
+    );
+
+    return count;
+  }
+
   /// Dispose of resources.
   ///
   /// Stops file watching and cleans up.
   Future<void> dispose() {
+    _registry?.unloadAll();
     return _indexer.dispose();
   }
 }

@@ -88,6 +88,7 @@ void main(List<String> arguments) async {
   final watch = args['watch'] as bool;
   final interactive = args['interactive'] as bool;
   final noCache = args['no-cache'] as bool;
+  final withDeps = args['with-deps'] as bool;
 
   // Validate project path
   final pubspecFile = File('$projectPath/pubspec.yaml');
@@ -98,6 +99,9 @@ void main(List<String> arguments) async {
   }
 
   stderr.writeln('Opening project: $projectPath');
+  if (withDeps) {
+    stderr.writeln('Loading pre-indexed dependencies...');
+  }
 
   DartContext? context;
   try {
@@ -106,12 +110,17 @@ void main(List<String> arguments) async {
       projectPath,
       watch: watch || interactive,
       useCache: !noCache,
+      loadDependencies: withDeps,
     );
     stopwatch.stop();
 
+    final depsInfo = withDeps && context.hasDependencies
+        ? ', ${context.registry!.packageIndexes.length} packages loaded'
+        : '';
     stderr.writeln(
       'Indexed ${context.stats['files']} files, '
-      '${context.stats['symbols']} symbols '
+      '${context.stats['symbols']} symbols'
+      '$depsInfo '
       '(${stopwatch.elapsedMilliseconds}ms)',
     );
 

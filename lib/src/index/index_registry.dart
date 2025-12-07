@@ -49,6 +49,25 @@ class IndexRegistry {
   })  : _projectIndex = projectIndex,
         _globalCachePath = globalCachePath ?? _defaultGlobalCachePath;
 
+  /// Creates a registry with pre-loaded indexes for testing.
+  ///
+  /// This constructor is intended for unit tests that need to simulate
+  /// cross-package queries without actual SDK/package indexes on disk.
+  IndexRegistry.withIndexes({
+    required ScipIndex projectIndex,
+    ScipIndex? sdkIndex,
+    String? sdkVersion,
+    Map<String, ScipIndex>? packageIndexes,
+    String? globalCachePath,
+  })  : _projectIndex = projectIndex,
+        _globalCachePath = globalCachePath ?? _defaultGlobalCachePath,
+        _sdkIndex = sdkIndex,
+        _loadedSdkVersion = sdkVersion {
+    if (packageIndexes != null) {
+      _packageIndexes.addAll(packageIndexes);
+    }
+  }
+
   final ScipIndex _projectIndex;
   final String _globalCachePath;
   final Map<String, ScipIndex> _packageIndexes = {};
@@ -56,7 +75,9 @@ class IndexRegistry {
   String? _loadedSdkVersion;
 
   static String get _defaultGlobalCachePath {
-    final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '.';
+    final home = Platform.environment['HOME'] ??
+        Platform.environment['USERPROFILE'] ??
+        '.';
     return '$home/.dart_context';
   }
 
@@ -70,7 +91,8 @@ class IndexRegistry {
   String? get loadedSdkVersion => _loadedSdkVersion;
 
   /// All loaded package indexes.
-  Map<String, ScipIndex> get packageIndexes => Map.unmodifiable(_packageIndexes);
+  Map<String, ScipIndex> get packageIndexes =>
+      Map.unmodifiable(_packageIndexes);
 
   /// Path to global cache directory.
   String get globalCachePath => _globalCachePath;
@@ -280,6 +302,86 @@ class IndexRegistry {
     _packageIndexes.remove('$name-$version');
   }
 
+  /// Load all available pre-indexed dependencies for a project.
+  ///
+  /// Parses pubspec.lock and loads any packages that have pre-computed indexes.
+  /// Also tries to load the SDK if available.
+  ///
+  /// Returns the number of packages loaded.
+  Future<int> loadDependenciesFrom(String projectPath) async {
+    var loadedCount = 0;
+
+    // Try to load SDK (detect version from project)
+    final sdkVersion = await _detectSdkVersion(projectPath);
+    if (sdkVersion != null && await hasSdkIndex(sdkVersion)) {
+      await loadSdk(sdkVersion);
+      loadedCount++;
+    }
+
+    // Parse pubspec.lock for dependencies
+    final lockfile = File('$projectPath/pubspec.lock');
+    if (!await lockfile.exists()) {
+      return loadedCount;
+    }
+
+    final content = await lockfile.readAsString();
+    final packages = _parsePubspecLock(content);
+
+    // Load each package that has a pre-computed index
+    for (final pkg in packages) {
+      if (await hasPackageIndex(pkg.name, pkg.version)) {
+        await loadPackage(pkg.name, pkg.version);
+        loadedCount++;
+      }
+    }
+
+    return loadedCount;
+  }
+
+  /// Detect the Dart SDK version being used by a project.
+  Future<String?> _detectSdkVersion(String projectPath) async {
+    // Try to get SDK version from dart command
+    try {
+      final result = await Process.run('dart', ['--version']);
+      if (result.exitCode == 0) {
+        // Parse version from output like "Dart SDK version: 3.2.0 ..."
+        final output = result.stdout.toString();
+        final match =
+            RegExp(r'Dart SDK version: (\d+\.\d+\.\d+)').firstMatch(output);
+        if (match != null) {
+          return match.group(1);
+        }
+      }
+    } catch (_) {
+      // Ignore errors
+    }
+    return null;
+  }
+
+  /// Parse pubspec.lock to extract package versions.
+  List<_PackageInfo> _parsePubspecLock(String content) {
+    final packages = <_PackageInfo>[];
+    final lines = content.split('\n');
+
+    String? currentPackage;
+
+    for (final line in lines) {
+      if (line.startsWith('  ') &&
+          line.endsWith(':') &&
+          !line.startsWith('    ')) {
+        // Package name
+        currentPackage = line.trim().replaceAll(':', '');
+      } else if (line.contains('version:') && currentPackage != null) {
+        // Package version
+        final version = line.split(':').last.trim().replaceAll('"', '');
+        packages.add(_PackageInfo(currentPackage, version));
+        currentPackage = null;
+      }
+    }
+
+    return packages;
+  }
+
   /// Unload all external indexes.
   void unloadAll() {
     _sdkIndex = null;
@@ -318,3 +420,9 @@ enum IndexScope {
   // all, // TODO: Implement with dependency resolution
 }
 
+/// Internal class for package info from pubspec.lock.
+class _PackageInfo {
+  _PackageInfo(this.name, this.version);
+  final String name;
+  final String version;
+}

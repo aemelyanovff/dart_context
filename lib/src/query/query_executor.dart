@@ -3,6 +3,7 @@ import 'dart:io';
 // ignore: implementation_imports
 import 'package:scip_dart/src/gen/scip.pb.dart' as scip;
 
+import '../index/index_registry.dart';
 import '../index/scip_index.dart';
 import 'query_parser.dart';
 import 'query_result.dart';
@@ -50,7 +51,11 @@ import 'query_result.dart';
 typedef SignatureProvider = Future<String?> Function(String symbolId);
 
 class QueryExecutor {
-  QueryExecutor(this.index, {this.signatureProvider});
+  QueryExecutor(
+    this.index, {
+    this.signatureProvider,
+    this.registry,
+  });
 
   final ScipIndex index;
 
@@ -58,6 +63,11 @@ class QueryExecutor {
   /// If not provided, `sig` queries will fall back to extracting
   /// signatures from source code heuristically.
   final SignatureProvider? signatureProvider;
+
+  /// Optional registry for cross-package queries.
+  /// When provided, hierarchy queries (supertypes, subtypes, hierarchy, members)
+  /// will search across loaded external indexes (SDK, packages).
+  final IndexRegistry? registry;
 
   /// Execute a query string and return the result.
   ///
@@ -200,6 +210,7 @@ class QueryExecutor {
   }
 
   /// Get members for a specific symbol.
+  /// Uses [registry] for cross-package lookups when available.
   Future<QueryResult> _membersForSymbol(SymbolInfo sym) async {
     if (sym.kindString != 'class' &&
         sym.kindString != 'mixin' &&
@@ -208,7 +219,10 @@ class QueryExecutor {
       return NotFoundResult('${sym.name} is not a class/mixin/extension/enum');
     }
 
-    final members = index.membersOf(sym.symbol).toList();
+    // Use registry for cross-package lookup if available
+    final members = registry != null
+        ? registry!.membersOf(sym.symbol)
+        : index.membersOf(sym.symbol).toList();
     return MembersResult(symbol: sym, members: members);
   }
 
@@ -219,8 +233,12 @@ class QueryExecutor {
   }
 
   /// Get supertypes for a specific symbol.
+  /// Uses [registry] for cross-package lookups when available.
   Future<QueryResult> _supertypesForSymbol(SymbolInfo sym) async {
-    final supertypes = index.supertypesOf(sym.symbol).toList();
+    // Use registry for cross-package lookup if available
+    final supertypes = registry != null
+        ? registry!.supertypesOf(sym.symbol)
+        : index.supertypesOf(sym.symbol).toList();
     return HierarchyResult(
       symbol: sym,
       supertypes: supertypes,
@@ -229,8 +247,12 @@ class QueryExecutor {
   }
 
   /// Get subtypes for a specific symbol.
+  /// Uses [registry] for cross-package lookups when available.
   Future<QueryResult> _subtypesForSymbol(SymbolInfo sym) async {
-    final subtypes = index.subtypesOf(sym.symbol).toList();
+    // Use registry for cross-package lookup if available
+    final subtypes = registry != null
+        ? registry!.subtypesOf(sym.symbol)
+        : index.subtypesOf(sym.symbol).toList();
     return HierarchyResult(
       symbol: sym,
       supertypes: const <SymbolInfo>[],
@@ -239,9 +261,15 @@ class QueryExecutor {
   }
 
   /// Get full hierarchy for a specific symbol.
+  /// Uses [registry] for cross-package lookups when available.
   Future<QueryResult> _hierarchyForSymbol(SymbolInfo sym) async {
-    final supertypes = index.supertypesOf(sym.symbol).toList();
-    final subtypes = index.subtypesOf(sym.symbol).toList();
+    // Use registry for cross-package lookup if available
+    final supertypes = registry != null
+        ? registry!.supertypesOf(sym.symbol)
+        : index.supertypesOf(sym.symbol).toList();
+    final subtypes = registry != null
+        ? registry!.subtypesOf(sym.symbol)
+        : index.subtypesOf(sym.symbol).toList();
     return HierarchyResult(
       symbol: sym,
       supertypes: supertypes,
@@ -668,7 +696,10 @@ class QueryExecutor {
     }
 
     final sym = symbols.first;
-    final members = index.membersOf(sym.symbol).toList();
+    // Use registry for cross-package lookup if available
+    final members = registry != null
+        ? registry!.membersOf(sym.symbol)
+        : index.membersOf(sym.symbol).toList();
 
     return MembersResult(
       symbol: sym,
@@ -697,7 +728,10 @@ class QueryExecutor {
     }
 
     final sym = symbols.first;
-    final supertypes = index.supertypesOf(sym.symbol).toList();
+    // Use registry for cross-package lookup if available
+    final supertypes = registry != null
+        ? registry!.supertypesOf(sym.symbol)
+        : index.supertypesOf(sym.symbol).toList();
 
     return HierarchyResult(
       symbol: sym,
@@ -714,7 +748,10 @@ class QueryExecutor {
     }
 
     final sym = symbols.first;
-    final subtypes = index.subtypesOf(sym.symbol).toList();
+    // Use registry for cross-package lookup if available
+    final subtypes = registry != null
+        ? registry!.subtypesOf(sym.symbol)
+        : index.subtypesOf(sym.symbol).toList();
 
     return HierarchyResult(
       symbol: sym,
@@ -731,8 +768,13 @@ class QueryExecutor {
     }
 
     final sym = symbols.first;
-    final supertypes = index.supertypesOf(sym.symbol).toList();
-    final subtypes = index.subtypesOf(sym.symbol).toList();
+    // Use registry for cross-package lookup if available
+    final supertypes = registry != null
+        ? registry!.supertypesOf(sym.symbol)
+        : index.supertypesOf(sym.symbol).toList();
+    final subtypes = registry != null
+        ? registry!.subtypesOf(sym.symbol)
+        : index.subtypesOf(sym.symbol).toList();
 
     return HierarchyResult(
       symbol: sym,
