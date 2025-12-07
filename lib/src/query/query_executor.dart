@@ -609,10 +609,24 @@ class QueryExecutor {
   }
 
   Future<QueryResult> _refsForSingleSymbol(SymbolInfo sym) async {
-    final refs = index.findReferences(sym.symbol);
+    final allRefs = <OccurrenceInfo>[];
+
+    // Get direct references to this symbol
+    allRefs.addAll(index.findReferences(sym.symbol));
+
+    // For classes, also include constructor call references
+    // (constructor calls are indexed as refs to the constructor, not the class)
+    if (sym.kindString == 'class') {
+      final constructors = index.membersOf(sym.symbol).where(
+            (m) => m.kindString == 'constructor',
+          );
+      for (final ctor in constructors) {
+        allRefs.addAll(index.findReferences(ctor.symbol));
+      }
+    }
 
     final referenceMatches = <ReferenceMatch>[];
-    for (final ref in refs) {
+    for (final ref in allRefs) {
       final context = await index.getContext(ref);
       referenceMatches.add(
         ReferenceMatch(

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "createdAt": "2025-12-07T19:20:14.220608",
+  "createdAt": "2025-12-07T19:57:02.736819",
   "projectRoot": "/Users/wenkaifan/Dev/dart_context",
   "fileHashes": {
     "test/integration/incremental_indexer_test.dart": "6bd65564a1baf68e0a065d74a0296ad377927206e2fc07f3fa8300599309d1c0",
@@ -31,9 +31,9 @@
     "lib/src/index/scip_index.dart": "1a1f5e4a4278104caa6656d42ebb43f78d5bf16b601b2c58c503fb2892f781bd",
     "lib/src/index/incremental_indexer.dart": "867fb5e447b414c66114ad68377cf9b1dc58441cf7b1001d72cefc1ff676790a",
     "lib/src/query/query_parser.dart": "a6f8d6d409498362ee17ff29e256045764ed20df8c0dd6cfe68a3d314dd70a77",
-    "lib/src/query/query_executor.dart": "0308ae4f35269b17cd51cc02d88846d92ef009adae282d1225b7eba66eb5a479",
+    "lib/src/query/query_executor.dart": "26238c36dbbcbd350f013bc359075424e1d0596518bb0eeb72cefa1ea5e76276",
     "lib/src/query/query_result.dart": "e030e4b1925264de0ba9f2b879e08d695ca947b479d3548febf9bed0afb63d31",
     "lib/src/analyzer/signature_visitor.dart": "6be1e557d0da7531adb79d999189efd884d128427c40363d9e48a6cf5ca5803b",
-    "check_scip.dart": "782b26195d95ecdcfc527531d50fd15dfbd318aef4887b2a57b5dc2843d28610"
+    "check_refs.dart": "6b1bfee72b95d551a440633ba15dc389f21198698dfa1f10cfde85f2475d0623"
   }
 }
