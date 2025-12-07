@@ -47,8 +47,11 @@ library;
 export 'src/adapters/analyzer_adapter.dart';
 export 'src/adapters/hologram_adapter.dart';
 export 'src/dart_context.dart';
+export 'src/index/external_index_builder.dart'
+    show ExternalIndexBuilder, IndexResult, BatchIndexResult, PackageIndexResult;
 export 'src/index/incremental_indexer.dart'
     show IncrementalScipIndexer, IndexUpdate;
+export 'src/index/index_registry.dart' show IndexRegistry, IndexScope;
 export 'src/index/scip_index.dart'
     show ScipIndex, SymbolInfo, OccurrenceInfo, GrepMatchData;
 export 'src/query/query_executor.dart' show QueryExecutor;

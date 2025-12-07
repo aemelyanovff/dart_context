@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Index caching** for ~35x faster startup times (300ms vs 10s)
 - **Query DSL** for semantic code navigation
 - **Signature extraction** using the Dart analyzer for accurate signatures
+- **Cross-package queries** via pre-indexed SDK/packages with IndexRegistry
 
 #### Query Commands
 - `def <symbol>` - Find symbol definitions
@@ -65,6 +66,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI tool with interactive mode (`-i`) and watch mode (`-w`)
 - MCP server support via `DartContextSupport` mixin
 - External analyzer adapter for embedding in existing analysis infrastructure
+
+#### CLI Subcommands
+- `index-sdk <path>` - Pre-index the Dart/Flutter SDK for cross-package queries
+- `index-deps` - Pre-index all pub dependencies from pubspec.lock
+- `list-indexes` - List available pre-computed SDK/package indexes
+- `--with-deps` flag - Enable cross-package queries using pre-indexed dependencies
 
 ### Performance
 - Initial indexing: ~10-15s for 85 files

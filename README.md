@@ -266,6 +266,45 @@ Use `--no-cache` to force a full re-index:
 dart_context --no-cache -p /path/to/project stats
 ```
 
+### Cross-Package Queries
+
+dart_context supports querying across external dependencies (SDK, pub packages) by pre-computing their indexes:
+
+```bash
+# Pre-index the Dart SDK (do this once per SDK version)
+dart_context index-sdk /path/to/dart-sdk
+
+# Pre-index all dependencies from pubspec.lock
+dart_context index-deps
+
+# List available pre-computed indexes
+dart_context list-indexes
+
+# Query with dependencies loaded
+dart_context --with-deps "hierarchy MyWidget"
+```
+
+Indexes are stored in `~/.dart_context/`:
+```
+~/.dart_context/
+  sdk/
+    3.2.0/
+      index.scip
+      manifest.json
+  packages/
+    collection-1.18.0/
+      index.scip
+    analyzer-6.3.0/
+      index.scip
+```
+
+This enables queries like:
+- `hierarchy SignatureVisitor` - See that it extends `RecursiveAstVisitor` from analyzer
+- `supertypes MyWidget` - Full Flutter widget hierarchy
+- `refs StatefulWidget` - Find all uses of Flutter's StatefulWidget
+
+**Note**: Pre-indexing is optional and takes time. By default, dart_context only indexes your project code.
+
 ## Performance
 
 | Metric | Value |

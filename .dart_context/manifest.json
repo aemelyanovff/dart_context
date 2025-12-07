@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "createdAt": "2025-12-05T21:00:03.482779",
+  "createdAt": "2025-12-07T13:52:32.109776",
   "projectRoot": "/Users/wenkaifan/Dev/dart_context",
   "fileHashes": {
     "test/integration/incremental_indexer_test.dart": "6bd65564a1baf68e0a065d74a0296ad377927206e2fc07f3fa8300599309d1c0",
@@ -8,7 +8,7 @@
     "test/index/scip_index_test.dart": "0e44ad15af66235efced76ba2384cd5b6c1357415d3a1fdc38c71a8e8e2f8333",
     "test/query/imports_exports_test.dart": "c9913ac34b9e28e5149431f7f5085a3eb3a0ab1375a5b1ac9d02ecdcf110c641",
     "test/query/signature_test.dart": "cc5d0a7cfb4fb2be409118121a96ffa20420ddb1538d173bcca88ec826fd43e7",
-    "test/query/grep_test.dart": "756f12a774032ab7f3f6f50e6c48ac8c7ab7b528ccd9d86d4352575b8c5d0ea5",
+    "test/query/grep_test.dart": "41580d2e7ebadf3e440c7bcfe777ec36572df5eb2558904f4cc4e084e1d58f5c",
     "test/query/call_graph_test.dart": "3dc952e04551d8bcec04d72ad8ca972ae7fd31513b97338debc1cf46e7a439a6",
     "test/query/query_parser_test.dart": "bcb13fa826a65a0aa1e12acc166a17028905256948b0125fc2c3da4fece23996",
     "test/query/query_executor_test.dart": "642f63c67fbadbbba1d7724c3cbb9cd2810048fad8981c4ded58ea32621c463f",
@@ -17,10 +17,10 @@
     "test/query/query_result_test.dart": "659ffb8180e6553868981eb12d8619fbedcc1d665525e7747cebe5f06c8a47d6",
     "test/query/pipe_query_test.dart": "156c184f584e46005bedba6625274e76fa18fc63726a056a9dfcb619d3984228",
     "bin/dart_context.dart": "92497b15f1775b58eb5d82b432c4c1a89db65280b5f3b6a895a427bac53e16e0",
-    "example/example.dart": "912a8b494e29478a86a23d97b26d0aa996c48a4284e036dfd65decff0f0d2ed4",
+    "example/example.dart": "8c3cf07614c644ee594970cc29493e75b0a6a7e0b1ed1fbbd1fa2d7e246f3b04",
     "lib/dart_context_mcp.dart": "c7e9857e2f98cd798b7ee595e3ded655cc57e2a2e191ad212237e29d5c145354",
     "lib/dart_context.dart": "354e731385aca2f82adb51c127c1cd0dac51331597d036cae1ffc96a0fc5c4e1",
-    "lib/src/mcp/dart_context_mcp.dart": "d3be311ea8b94bd1f364b98bf13201314bec70c2bfb2f24048e1f3fcd5f7e762",
+    "lib/src/mcp/dart_context_mcp.dart": "2190226adb5ce58142e09ffdcb8c1cd79bb4e7612cfd671beb95cf5658c482bd",
     "lib/src/dart_context.dart": "fc7e09e98ce512e907b75d7694579c4cf3c57b0952426631be9657d601cfbc8e",
     "lib/src/adapters/hologram_adapter.dart": "2d1bea2bcd8cece8b53b43b1869a5471f4f568fd77902ec4692aa2353c7f77f7",
     "lib/src/adapters/analyzer_adapter.dart": "26db35d2e2cfcb4fc0d3b12b75cf0574344b56c799c598e50f7c34922b33f247",
@@ -28,8 +28,10 @@
     "lib/src/index/scip_index.dart": "b9e574a6f466f9601a98335152a02a9018a13b4713e08c5c5b09255e0e092a44",
     "lib/src/index/incremental_indexer.dart": "a5ecdf9bca9cb8255fceb1af608e187f67c924754d2e682f26c9763b6ea7711b",
     "lib/src/query/query_parser.dart": "a6f8d6d409498362ee17ff29e256045764ed20df8c0dd6cfe68a3d314dd70a77",
-    "lib/src/query/query_executor.dart": "a576219b84c9e873f403f1d97b55cd9dd67a0a790aa6a58da876794ba8685bf8",
+    "lib/src/query/query_executor.dart": "31712e1b389cf1483389aca74341fcd5f026afbede214daaec10a2d0e9d016f2",
     "lib/src/query/query_result.dart": "e030e4b1925264de0ba9f2b879e08d695ca947b479d3548febf9bed0afb63d31",
-    "lib/src/analyzer/signature_visitor.dart": "6be1e557d0da7531adb79d999189efd884d128427c40363d9e48a6cf5ca5803b"
+    "lib/src/analyzer/signature_visitor.dart": "6be1e557d0da7531adb79d999189efd884d128427c40363d9e48a6cf5ca5803b",
+    "lib/src/index/index_registry.dart": "78dafbadbde16e0e8d758ad541349aecdb48904e0fbf44317c7aac4dd050f94f",
+    "lib/src/index/external_index_builder.dart": "850171677de4e24f8ebc3130b9c06066c447037b012610b2ad146e231e59e5be"
   }
 }

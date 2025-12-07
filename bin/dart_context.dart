@@ -4,8 +4,28 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:dart_context/dart_context.dart';
+import 'package:dart_context/src/index/external_index_builder.dart';
+import 'package:dart_context/src/index/index_registry.dart';
+import 'package:dart_context/src/index/scip_index.dart';
+// ignore: implementation_imports
+import 'package:scip_dart/src/gen/scip.pb.dart' as scip;
 
 void main(List<String> arguments) async {
+  // Check for subcommands first
+  if (arguments.isNotEmpty) {
+    switch (arguments.first) {
+      case 'index-sdk':
+        await _indexSdk(arguments.skip(1).toList());
+        return;
+      case 'index-deps':
+        await _indexDependencies(arguments.skip(1).toList());
+        return;
+      case 'list-indexes':
+        await _listIndexes();
+        return;
+    }
+  }
+
   final parser = ArgParser()
     ..addOption(
       'project',
@@ -35,6 +55,11 @@ void main(List<String> arguments) async {
     ..addFlag(
       'no-cache',
       help: 'Disable cache and force full re-index',
+      defaultsTo: false,
+    )
+    ..addFlag(
+      'with-deps',
+      help: 'Load pre-indexed dependencies for cross-package queries',
       defaultsTo: false,
     )
     ..addFlag(
@@ -121,9 +146,15 @@ void _printUsage(ArgParser parser) {
   stdout.writeln('dart_context - Lightweight semantic code intelligence for Dart');
   stdout.writeln('');
   stdout.writeln('Usage: dart_context [options] <query>');
+  stdout.writeln('       dart_context <subcommand> [args]');
   stdout.writeln('');
   stdout.writeln('Options:');
   stdout.writeln(parser.usage);
+  stdout.writeln('');
+  stdout.writeln('Subcommands:');
+  stdout.writeln('  index-sdk <sdk-path>   Pre-index the Dart/Flutter SDK');
+  stdout.writeln('  index-deps             Pre-index all pub dependencies');
+  stdout.writeln('  list-indexes           List available pre-computed indexes');
   stdout.writeln('');
   stdout.writeln('Query DSL:');
   stdout.writeln('  def <symbol>           Find definition');
@@ -134,7 +165,9 @@ void _printUsage(ArgParser parser) {
   stdout.writeln('  subtypes <symbol>      Get subtypes');
   stdout.writeln('  hierarchy <symbol>     Full hierarchy');
   stdout.writeln('  source <symbol>        Get source code');
+  stdout.writeln('  sig <symbol>           Get symbol signature');
   stdout.writeln('  find <pattern>         Search symbols');
+  stdout.writeln('  grep <pattern>         Search source code');
   stdout.writeln('  files                  List indexed files');
   stdout.writeln('  stats                  Index statistics');
   stdout.writeln('');
@@ -146,9 +179,15 @@ void _printUsage(ArgParser parser) {
   stdout.writeln('  dart_context def AuthRepository');
   stdout.writeln('  dart_context refs login');
   stdout.writeln('  dart_context "find Auth* kind:class"');
+  stdout.writeln('  dart_context "grep TODO"');
   stdout.writeln('  dart_context -i                    # Interactive mode');
   stdout.writeln('  dart_context -w                    # Watch mode');
   stdout.writeln('  dart_context -w "find * kind:class"  # Watch + re-run query on changes');
+  stdout.writeln('');
+  stdout.writeln('Pre-indexing dependencies (for cross-package queries):');
+  stdout.writeln('  dart_context index-sdk /path/to/dart-sdk');
+  stdout.writeln('  dart_context index-deps');
+  stdout.writeln('  dart_context --with-deps "hierarchy MyClass"');
 }
 
 void _printResult(QueryResult result, String format) {
@@ -274,5 +313,157 @@ Future<void> _runInteractive(DartContext context, String format) async {
   }
 
   stdout.writeln('Goodbye!');
+}
+
+/// Index the Dart/Flutter SDK for cross-package queries.
+Future<void> _indexSdk(List<String> args) async {
+  if (args.isEmpty) {
+    stderr.writeln('Usage: dart_context index-sdk <sdk-path>');
+    stderr.writeln('');
+    stderr.writeln('Example:');
+    stderr.writeln('  dart_context index-sdk /opt/flutter/bin/cache/dart-sdk');
+    stderr.writeln('  dart_context index-sdk \$(dirname \$(which dart))/..');
+    exit(1);
+  }
+
+  final sdkPath = args.first;
+  final sdkDir = Directory(sdkPath);
+
+  if (!await sdkDir.exists()) {
+    stderr.writeln('Error: SDK path does not exist: $sdkPath');
+    exit(1);
+  }
+
+  // Check for version file
+  final versionFile = File('$sdkPath/version');
+  if (!await versionFile.exists()) {
+    stderr.writeln('Error: Not a valid Dart SDK (no version file found)');
+    exit(1);
+  }
+
+  final version = (await versionFile.readAsString()).trim();
+  stderr.writeln('Indexing Dart SDK $version...');
+  stderr.writeln('This may take a few minutes.');
+  stderr.writeln('');
+
+  // Create a temporary registry for building
+  final tempIndex = await ScipIndex.loadFromFile(
+    '$sdkPath/lib/core/core.dart', // This won't work, need to create empty index
+    projectRoot: sdkPath,
+  ).catchError((_) async {
+    // Create minimal index just to bootstrap the registry
+    return _createEmptyIndex(sdkPath);
+  });
+
+  final registry = IndexRegistry(projectIndex: tempIndex);
+  final builder = ExternalIndexBuilder(registry: registry);
+
+  final stopwatch = Stopwatch()..start();
+  final result = await builder.indexSdk(sdkPath);
+  stopwatch.stop();
+
+  if (result.success) {
+    stdout.writeln('✓ SDK indexed successfully');
+    stdout.writeln('  Version: ${result.stats?['version']}');
+    stdout.writeln('  Symbols: ${result.stats?['symbols']}');
+    stdout.writeln('  Files: ${result.stats?['files']}');
+    stdout.writeln('  Time: ${stopwatch.elapsed.inSeconds}s');
+    stdout.writeln('');
+    stdout.writeln('Index saved to: ${registry.sdkIndexPath(version)}');
+  } else {
+    stderr.writeln('✗ Failed to index SDK: ${result.error}');
+    exit(1);
+  }
+}
+
+/// Index all pub dependencies for cross-package queries.
+Future<void> _indexDependencies(List<String> args) async {
+  final projectPath = args.isNotEmpty ? args.first : '.';
+
+  final lockfile = File('$projectPath/pubspec.lock');
+  if (!await lockfile.exists()) {
+    stderr.writeln('Error: No pubspec.lock found in $projectPath');
+    stderr.writeln('Run "dart pub get" first.');
+    exit(1);
+  }
+
+  stderr.writeln('Indexing dependencies from $projectPath...');
+  stderr.writeln('This may take several minutes for large projects.');
+  stderr.writeln('');
+
+  // Create a temporary index for the registry
+  final tempIndex = _createEmptyIndex(projectPath);
+  final registry = IndexRegistry(projectIndex: tempIndex);
+  final builder = ExternalIndexBuilder(registry: registry);
+
+  final stopwatch = Stopwatch()..start();
+  final result = await builder.indexDependencies(projectPath);
+  stopwatch.stop();
+
+  if (!result.success) {
+    stderr.writeln('✗ Failed: ${result.error}');
+    exit(1);
+  }
+
+  stdout.writeln('Results:');
+  stdout.writeln('  Indexed: ${result.indexed}');
+  stdout.writeln('  Skipped (already indexed): ${result.skipped}');
+  stdout.writeln('  Failed: ${result.failed}');
+  stdout.writeln('  Time: ${stopwatch.elapsed.inSeconds}s');
+  stdout.writeln('');
+
+  if (result.failed > 0) {
+    stdout.writeln('Failed packages:');
+    for (final pkg in result.results.where((r) => !r.success && !r.skipped)) {
+      stdout.writeln('  - ${pkg.name}-${pkg.version}: ${pkg.error}');
+    }
+  }
+}
+
+/// List available pre-computed indexes.
+Future<void> _listIndexes() async {
+  final tempIndex = _createEmptyIndex('.');
+  final registry = IndexRegistry(projectIndex: tempIndex);
+  final builder = ExternalIndexBuilder(registry: registry);
+
+  stdout.writeln('Pre-computed indexes in ${registry.globalCachePath}:');
+  stdout.writeln('');
+
+  // List SDK indexes
+  final sdkVersions = await builder.listSdkIndexes();
+  stdout.writeln('SDK Indexes:');
+  if (sdkVersions.isEmpty) {
+    stdout.writeln('  (none)');
+  } else {
+    for (final version in sdkVersions) {
+      stdout.writeln('  - Dart SDK $version');
+    }
+  }
+  stdout.writeln('');
+
+  // List package indexes
+  final packages = await builder.listPackageIndexes();
+  stdout.writeln('Package Indexes:');
+  if (packages.isEmpty) {
+    stdout.writeln('  (none)');
+  } else {
+    for (final pkg in packages) {
+      stdout.writeln('  - ${pkg.name} ${pkg.version}');
+    }
+  }
+  stdout.writeln('');
+
+  stdout.writeln('To index SDK: dart_context index-sdk <path>');
+  stdout.writeln('To index deps: dart_context index-deps');
+}
+
+/// Create an empty ScipIndex for bootstrapping.
+ScipIndex _createEmptyIndex(String projectRoot) {
+  // This is a workaround - we need a way to create an empty index
+  // For now, return a minimal valid index
+  return ScipIndex.fromScipIndex(
+    scip.Index(),
+    projectRoot: projectRoot,
+  );
 }
 
