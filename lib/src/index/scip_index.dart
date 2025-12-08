@@ -59,21 +59,42 @@ class ScipIndex {
   final Map<String, Set<String>> _callersIndex; // symbol → symbols that call it
   final String _projectRoot;
 
+  /// Default maximum size for protobuf index files (256MB).
+  static const int defaultMaxIndexSize = 256 << 20;
+
   /// Load index from a SCIP protobuf file.
   ///
-  /// Supports large index files up to 256MB (compared to default 64MB limit).
+  /// The [maxSize] parameter controls the maximum allowed index file size.
+  /// Defaults to 256MB which is sufficient for large packages like Flutter.
+  /// For very large monorepos, you may need to increase this.
   static Future<ScipIndex> loadFromFile(
     String indexPath, {
     required String projectRoot,
+    int maxSize = defaultMaxIndexSize,
   }) async {
     final bytes = await File(indexPath).readAsBytes();
-    // Use a larger size limit for large packages like Flutter
     final reader = CodedBufferReader(
       bytes,
-      sizeLimit: 256 << 20, // 256MB limit
+      sizeLimit: maxSize,
     );
     final index = scip.Index()..mergeFromCodedBufferReader(reader);
     return fromScipIndex(index, projectRoot: projectRoot);
+  }
+
+  /// Create an empty index with no symbols.
+  ///
+  /// Useful for bootstrapping when you need an index instance but don't
+  /// have any data yet.
+  static ScipIndex empty({required String projectRoot}) {
+    return ScipIndex._(
+      symbolIndex: {},
+      referenceIndex: {},
+      documentIndex: {},
+      childIndex: {},
+      callsIndex: {},
+      callersIndex: {},
+      projectRoot: projectRoot,
+    );
   }
 
   /// Build index from SCIP protobuf data.
@@ -164,19 +185,6 @@ class ScipIndex {
       childIndex: childIndex,
       callsIndex: callsIndex,
       callersIndex: callersIndex,
-      projectRoot: projectRoot,
-    );
-  }
-
-  /// Create an empty index.
-  factory ScipIndex.empty({required String projectRoot}) {
-    return ScipIndex._(
-      symbolIndex: {},
-      referenceIndex: {},
-      documentIndex: {},
-      childIndex: {},
-      callsIndex: {},
-      callersIndex: {},
       projectRoot: projectRoot,
     );
   }

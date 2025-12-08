@@ -7,6 +7,8 @@ import 'package:protobuf/protobuf.dart' show CodedBufferReader;
 // ignore: implementation_imports
 import 'package:scip_dart/src/gen/scip.pb.dart' as scip;
 
+import 'scip_index.dart' show ScipIndex;
+
 /// Manages caching of SCIP indexes to disk.
 ///
 /// Cache is stored in `.dart_context/` directory within the project:
@@ -54,10 +56,9 @@ class IndexCache {
     try {
       final indexFile = File(indexPath);
       final bytes = await indexFile.readAsBytes();
-      // Use a larger size limit for large packages
       final reader = CodedBufferReader(
         bytes,
-        sizeLimit: 256 << 20, // 256MB limit
+        sizeLimit: ScipIndex.defaultMaxIndexSize,
       );
       final index = scip.Index()..mergeFromCodedBufferReader(reader);
 

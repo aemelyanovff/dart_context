@@ -15,6 +15,7 @@ import 'package:scip_dart/src/scip_visitor.dart';
 // ignore: implementation_imports
 import 'package:scip_dart/src/version.dart';
 
+import '../utils/pubspec_utils.dart';
 import 'index_registry.dart';
 import 'scip_index.dart';
 
@@ -152,6 +153,9 @@ class ExternalIndexBuilder {
   /// where the lib/ directory needs to be analyzed separately from the
   /// package root.
   Future<scip.Index?> _indexDirectory(String path) async {
+    // Clear global state from previous indexing runs to prevent accumulation
+    globalExternalSymbols.clear();
+
     // Ensure we have an absolute path
     final absPath = Directory(path).absolute.path;
 
@@ -295,7 +299,7 @@ class ExternalIndexBuilder {
     }
 
     final content = await lockfile.readAsString();
-    final packages = _parsePubspecLock(content);
+    final packages = parsePubspecLock(content);
 
     final pubCachePath = await _getPubCachePath();
     if (pubCachePath == null) {
@@ -411,29 +415,6 @@ class ExternalIndexBuilder {
     );
   }
 
-  List<_PackageInfo> _parsePubspecLock(String content) {
-    final packages = <_PackageInfo>[];
-    final lines = content.split('\n');
-
-    String? currentPackage;
-    String? currentVersion;
-
-    for (final line in lines) {
-      if (line.startsWith('  ') && line.endsWith(':') && !line.startsWith('    ')) {
-        // Package name
-        currentPackage = line.trim().replaceAll(':', '');
-      } else if (line.contains('version:') && currentPackage != null) {
-        // Package version
-        currentVersion = line.split(':').last.trim().replaceAll('"', '');
-        packages.add(_PackageInfo(currentPackage, currentVersion));
-        currentPackage = null;
-        currentVersion = null;
-      }
-    }
-
-    return packages;
-  }
-
   Future<String?> _getPubCachePath() async {
     // Check environment variable first
     final envPath = Platform.environment['PUB_CACHE'];
@@ -453,12 +434,6 @@ class ExternalIndexBuilder {
 
     return null;
   }
-}
-
-class _PackageInfo {
-  _PackageInfo(this.name, this.version);
-  final String name;
-  final String version;
 }
 
 /// Result of indexing an external source.

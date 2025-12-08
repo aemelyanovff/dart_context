@@ -1,5 +1,8 @@
 import 'dart:io';
 
+import 'package:yaml/yaml.dart';
+
+import '../utils/pubspec_utils.dart';
 import 'scip_index.dart';
 
 /// Manages multiple SCIP indexes for cross-package queries.
@@ -325,7 +328,7 @@ class IndexRegistry {
     }
 
     final content = await lockfile.readAsString();
-    final packages = _parsePubspecLock(content);
+    final packages = parsePubspecLock(content);
 
     // Load each package that has a pre-computed index
     for (final pkg in packages) {
@@ -380,21 +383,41 @@ class IndexRegistry {
   /// Detect the Flutter SDK version being used by a project.
   ///
   /// Returns the Flutter version if the project uses Flutter, null otherwise.
+  /// Uses proper YAML parsing to detect Flutter SDK dependencies.
   Future<String?> _detectFlutterVersion(String projectPath) async {
-    // First check if this is a Flutter project
+    // First check if this is a Flutter project by parsing pubspec.yaml
     final pubspecFile = File('$projectPath/pubspec.yaml');
     if (!await pubspecFile.exists()) {
       return null;
     }
 
-    final pubspecContent = await pubspecFile.readAsString();
-    // Simple check: look for flutter SDK dependency
-    if (!pubspecContent.contains('flutter:') ||
-        !pubspecContent.contains('sdk: flutter')) {
+    try {
+      final pubspecContent = await pubspecFile.readAsString();
+      final pubspec = loadYaml(pubspecContent) as YamlMap?;
+      if (pubspec == null) return null;
+
+      // Check dependencies for flutter SDK
+      final dependencies = pubspec['dependencies'] as YamlMap?;
+      if (dependencies == null) return null;
+
+      final flutter = dependencies['flutter'];
+      if (flutter == null) return null;
+
+      // Flutter SDK dependency looks like: flutter: { sdk: flutter }
+      if (flutter is YamlMap && flutter['sdk'] == 'flutter') {
+        // This is a Flutter project, get the version
+        return await _getFlutterVersion();
+      }
+    } catch (_) {
+      // YAML parsing failed, not a valid pubspec
       return null;
     }
 
-    // Try to get Flutter version from flutter command
+    return null;
+  }
+
+  /// Get the Flutter SDK version from the flutter command.
+  Future<String?> _getFlutterVersion() async {
     try {
       final result = await Process.run('flutter', ['--version', '--machine']);
       if (result.exitCode == 0) {
@@ -423,30 +446,6 @@ class IndexRegistry {
       }
     }
     return null;
-  }
-
-  /// Parse pubspec.lock to extract package versions.
-  List<_PackageInfo> _parsePubspecLock(String content) {
-    final packages = <_PackageInfo>[];
-    final lines = content.split('\n');
-
-    String? currentPackage;
-
-    for (final line in lines) {
-      if (line.startsWith('  ') &&
-          line.endsWith(':') &&
-          !line.startsWith('    ')) {
-        // Package name
-        currentPackage = line.trim().replaceAll(':', '');
-      } else if (line.contains('version:') && currentPackage != null) {
-        // Package version
-        final version = line.split(':').last.trim().replaceAll('"', '');
-        packages.add(_PackageInfo(currentPackage, version));
-        currentPackage = null;
-      }
-    }
-
-    return packages;
   }
 
   /// Unload all external indexes.
@@ -485,11 +484,4 @@ enum IndexScope {
   /// Search all available indexes (may trigger loading).
   /// Note: This requires knowing which packages to load.
   // all, // TODO: Implement with dependency resolution
-}
-
-/// Internal class for package info from pubspec.lock.
-class _PackageInfo {
-  _PackageInfo(this.name, this.version);
-  final String name;
-  final String version;
 }

@@ -7,8 +7,6 @@ import 'package:dart_context/dart_context.dart';
 import 'package:dart_context/src/index/external_index_builder.dart';
 import 'package:dart_context/src/index/index_registry.dart';
 import 'package:dart_context/src/index/scip_index.dart';
-// ignore: implementation_imports
-import 'package:scip_dart/src/gen/scip.pb.dart' as scip;
 
 void main(List<String> arguments) async {
   // Check for subcommands first
@@ -431,7 +429,7 @@ Future<void> _indexSdk(List<String> args) async {
     projectRoot: sdkPath,
   ).catchError((_) async {
     // Create minimal index just to bootstrap the registry
-    return _createEmptyIndex(sdkPath);
+    return ScipIndex.empty(projectRoot: sdkPath);
   });
 
   final registry = IndexRegistry(projectIndex: tempIndex);
@@ -517,7 +515,7 @@ Future<void> _indexFlutter(List<String> args) async {
     'flutter_web_plugins',
   ];
 
-  final tempIndex = _createEmptyIndex(flutterPath);
+  final tempIndex = ScipIndex.empty(projectRoot: flutterPath);
   final registry = IndexRegistry(projectIndex: tempIndex);
   final builder = ExternalIndexBuilder(registry: registry);
 
@@ -590,7 +588,7 @@ Future<void> _indexDependencies(List<String> args) async {
   stderr.writeln('');
 
   // Create a temporary index for the registry
-  final tempIndex = _createEmptyIndex(projectPath);
+  final tempIndex = ScipIndex.empty(projectRoot: projectPath);
   final registry = IndexRegistry(projectIndex: tempIndex);
   final builder = ExternalIndexBuilder(registry: registry);
 
@@ -620,7 +618,7 @@ Future<void> _indexDependencies(List<String> args) async {
 
 /// List available pre-computed indexes.
 Future<void> _listIndexes() async {
-  final tempIndex = _createEmptyIndex('.');
+  final tempIndex = ScipIndex.empty(projectRoot: '.');
   final registry = IndexRegistry(projectIndex: tempIndex);
   final builder = ExternalIndexBuilder(registry: registry);
 
@@ -653,14 +651,4 @@ Future<void> _listIndexes() async {
 
   stdout.writeln('To index SDK: dart_context index-sdk <path>');
   stdout.writeln('To index deps: dart_context index-deps');
-}
-
-/// Create an empty ScipIndex for bootstrapping.
-ScipIndex _createEmptyIndex(String projectRoot) {
-  // This is a workaround - we need a way to create an empty index
-  // For now, return a minimal valid index
-  return ScipIndex.fromScipIndex(
-    scip.Index(),
-    projectRoot: projectRoot,
-  );
 }
