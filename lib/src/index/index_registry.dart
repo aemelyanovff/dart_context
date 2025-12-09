@@ -351,6 +351,34 @@ class IndexRegistry {
     return indexes;
   }
 
+  /// Find symbols matching a qualified name (container.member) across indexes.
+  ///
+  /// Searches project → SDK → packages and returns unique results.
+  Iterable<SymbolInfo> findQualified(String container, String member) {
+    final seen = <String>{};
+    final results = <SymbolInfo>[];
+
+    void addAll(Iterable<SymbolInfo> symbols) {
+      for (final sym in symbols) {
+        if (seen.add(sym.symbol)) {
+          results.add(sym);
+        }
+      }
+    }
+
+    addAll(_projectIndex.findQualified(container, member));
+
+    if (_sdkIndex != null) {
+      addAll(_sdkIndex!.findQualified(container, member));
+    }
+
+    for (final index in _packageIndexes.values) {
+      addAll(index.findQualified(container, member));
+    }
+
+    return results;
+  }
+
   /// Grep across all loaded indexes.
   ///
   /// Returns grep matches from project and all loaded external packages.

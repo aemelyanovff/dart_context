@@ -536,9 +536,55 @@ class QueryExecutor {
   /// Searches in the project index first, then in external indexes
   /// (SDK, packages) if a registry is available.
   List<SymbolInfo> _findMatchingSymbols(ScipQuery query) {
+    List<SymbolInfo> _sorted(List<SymbolInfo> symbols) {
+      const priority = {
+        'class': 0,
+        'mixin': 0,
+        'enum': 0,
+        'extension': 0,
+        'typealias': 1,
+        'function': 2,
+        'method': 3,
+        'constructor': 4,
+        'getter': 5,
+        'setter': 5,
+        'property': 6,
+        'field': 6,
+        'variable': 7,
+        'parameter': 8,
+        'local': 9,
+      };
+
+      int kindPriority(SymbolInfo s) => priority[s.kindString] ?? 50;
+
+      // Prefer project symbols over external when priority ties
+      bool isProject(SymbolInfo s) =>
+          registry == null || registry!.projectIndex.getSymbol(s.symbol) != null;
+
+      final sorted = [...symbols];
+      sorted.sort((a, b) {
+        final pa = kindPriority(a);
+        final pb = kindPriority(b);
+        if (pa != pb) return pa - pb;
+        // Prefer project symbols when kinds tie
+        final projA = isProject(a);
+        final projB = isProject(b);
+        if (projA != projB) return projA ? -1 : 1;
+        return a.name.compareTo(b.name);
+      });
+      return sorted;
+    }
+
     if (query.isQualified) {
       // Qualified lookup: Class.member
-      return index.findQualified(query.container!, query.memberName).toList();
+      if (registry != null) {
+        return _sorted(
+          registry!.findQualified(query.container!, query.memberName).toList(),
+        );
+      }
+      return _sorted(
+        index.findQualified(query.container!, query.memberName).toList(),
+      );
     } else {
       // Regular lookup - search project first, then external packages
       final results = index.findSymbols(query.target).toList();
@@ -555,7 +601,7 @@ class QueryExecutor {
         }
       }
 
-      return results;
+      return _sorted(results);
     }
   }
 
