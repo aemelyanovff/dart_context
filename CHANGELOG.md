@@ -53,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `-o` - Show only matched text
 - `-F` - Fixed strings (literal, no regex)
 - `-M` - Multiline matching
+- `-D` - Search external dependencies (with `--with-deps`)
 - `-C:n`, `-A:n`, `-B:n` - Context lines
 - `-m:n` - Max matches per file
 - `--include:glob`, `--exclude:glob` - File filtering
@@ -68,10 +69,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - External analyzer adapter for embedding in existing analysis infrastructure
 
 #### CLI Subcommands
-- `index-sdk <path>` - Pre-index the Dart/Flutter SDK for cross-package queries
+- `index-flutter [path]` - Pre-index Flutter SDK packages (flutter, flutter_test, etc.)
+- `index-sdk <path>` - Pre-index the Dart SDK for cross-package queries
 - `index-deps` - Pre-index all pub dependencies from pubspec.lock
 - `list-indexes` - List available pre-computed SDK/package indexes
 - `--with-deps` flag - Enable cross-package queries using pre-indexed dependencies
+
+#### MCP Tools
+- `dart_query` - Query codebase with DSL
+- `dart_index_flutter` - Index Flutter SDK packages
+- `dart_index_deps` - Index pub dependencies from pubspec.lock
+- `dart_refresh` - Refresh project index and reload dependencies
+- `dart_status` - Show index status (files, symbols, loaded packages)
+- `bin/mcp_server.dart` - Ready-to-use MCP server for Cursor integration
 
 ### Performance
 - Initial indexing: ~10-15s for 85 files

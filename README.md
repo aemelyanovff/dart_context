@@ -158,6 +158,7 @@ which login
 | `-o` | Show only matched text | `grep /\w+Error/ -o` |
 | `-F` | Fixed strings (literal, no regex) | `grep -F '$variable'` |
 | `-M` | Multiline matching | `grep /class.*\{/ -M` |
+| `-D` | Search external dependencies | `grep StatelessWidget -D` |
 | `-C:n` | Context lines (before + after) | `grep TODO -C:3` |
 | `-A:n` | Lines after match | `grep error -A:5` |
 | `-B:n` | Lines before match | `grep error -B:2` |
@@ -268,9 +269,12 @@ dart_context --no-cache -p /path/to/project stats
 
 ### Cross-Package Queries
 
-dart_context supports querying across external dependencies (SDK, pub packages) by pre-computing their indexes:
+dart_context supports querying across external dependencies (SDK, Flutter, pub packages) by pre-computing their indexes:
 
 ```bash
+# Pre-index Flutter SDK packages (do this once per Flutter version)
+dart_context index-flutter /path/to/flutter
+
 # Pre-index the Dart SDK (do this once per SDK version)
 dart_context index-sdk /path/to/dart-sdk
 
@@ -282,6 +286,9 @@ dart_context list-indexes
 
 # Query with dependencies loaded
 dart_context --with-deps "hierarchy MyWidget"
+
+# Search dependencies with grep -D flag
+dart_context --with-deps "grep Navigator -D -l"
 ```
 
 Indexes are stored in `~/.dart_context/`:
@@ -317,32 +324,57 @@ This enables queries like:
 
 ## MCP Integration
 
-Add the `dart_query` tool to your MCP server:
+### Using with Cursor
+
+A ready-to-use MCP server is included. Add to `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "dart_context": {
+      "type": "stdio",
+      "command": "dart",
+      "args": ["run", "/path/to/dart_context/bin/mcp_server.dart"]
+    }
+  }
+}
+```
+
+Restart Cursor, then ask Claude to use the tools:
+- "Use dart_status to check the index"
+- "Use dart_index_flutter to index the Flutter SDK"
+- "Use dart_query to find references to MyClass"
+
+### Available MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `dart_query` | Query codebase with DSL (refs, def, find, grep, etc.) |
+| `dart_index_flutter` | Index Flutter SDK packages (~1 min, one-time) |
+| `dart_index_deps` | Index pub dependencies from pubspec.lock |
+| `dart_refresh` | Refresh project index and reload dependencies |
+| `dart_status` | Show index status (files, symbols, packages loaded) |
+
+### Custom MCP Server
+
+Add `DartContextSupport` to your own MCP server:
 
 ```dart
 import 'package:dart_context/dart_context_mcp.dart';
 import 'package:dart_mcp/server.dart';
 
-class MyServer extends MCPServer with DartContextSupport {
+base class MyServer extends MCPServer 
+    with LoggingSupport, ToolsSupport, RootsTrackingSupport, DartContextSupport {
   // Your server implementation
 }
 ```
 
-This provides a single `dart_query` tool that accepts DSL queries:
-
-```json
-{
-  "name": "dart_query",
-  "arguments": {
-    "query": "def AuthRepository"
-  }
-}
-```
-
-The tool automatically:
-- Indexes project roots on first query
-- Caches indexes for fast subsequent queries
-- Watches for file changes and updates incrementally
+The tools automatically:
+- Index project roots on first query
+- Cache indexes for fast subsequent queries  
+- Watch for file changes and update incrementally
+- Load pre-computed SDK/package indexes
+- Watch package_config.json and notify when deps change
 
 ## External Analyzer Integration
 
