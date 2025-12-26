@@ -595,6 +595,44 @@ class IndexRegistry {
     return callers.values.toList();
   }
 
+  /// Find all callers of a symbol BY NAME across all loaded indexes.
+  ///
+  /// This is useful for workspace queries where symbol IDs differ between
+  /// packages. It finds the symbol in each index and aggregates all callers.
+  ///
+  /// [symbolName] is the simple name (e.g., "fetchData").
+  List<SymbolInfo> findAllCallersByName(String symbolName) {
+    final callers = <String, SymbolInfo>{};
+
+    void addCallers(ScipIndex index) {
+      for (final sym in index.findSymbols(symbolName)) {
+        for (final caller in index.getCallers(sym.symbol)) {
+          callers[caller.symbol] = caller;
+        }
+      }
+    }
+
+    // Search all indexes
+    addCallers(_projectIndex);
+    for (final index in _localIndexes.values) {
+      addCallers(index);
+    }
+    if (_sdkIndex != null) {
+      addCallers(_sdkIndex!);
+    }
+    for (final index in _flutterIndexes.values) {
+      addCallers(index);
+    }
+    for (final index in _packageIndexes.values) {
+      addCallers(index);
+    }
+    for (final index in _gitIndexes.values) {
+      addCallers(index);
+    }
+
+    return callers.values.toList();
+  }
+
   /// Get all files across all loaded indexes.
   Iterable<String> get allFiles sync* {
     yield* _projectIndex.files;

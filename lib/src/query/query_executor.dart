@@ -195,15 +195,31 @@ class QueryExecutor {
   }
 
   /// Get definition for a specific symbol.
+  ///
+  /// Uses [registry] for cross-package definition lookup when available.
   Future<QueryResult> _definitionForSymbol(SymbolInfo sym) async {
-    final def = index.findDefinition(sym.symbol);
+    // Try registry first for cross-package support
+    OccurrenceInfo? def;
+    String? source;
+
+    if (registry != null) {
+      def = registry!.findDefinition(sym.symbol);
+      if (def != null) {
+        source = await registry!.getSource(sym.symbol);
+      }
+    } else {
+      def = index.findDefinition(sym.symbol);
+      if (def != null) {
+        source = await index.getSource(sym.symbol);
+      }
+    }
+
     if (def == null) {
       return NotFoundResult(
-        'Symbol "${sym.name}" has no definition (may be external)',
+        'Symbol "${sym.name}" found but no definition available (may be external)',
       );
     }
 
-    final source = await index.getSource(sym.symbol);
     return DefinitionResult([
       DefinitionMatch(symbol: sym, location: def, source: source),
     ]);
@@ -382,10 +398,20 @@ class QueryExecutor {
   /// Get callers for a specific symbol.
   ///
   /// Uses [registry] for cross-package call graph when available.
+  /// For workspace mode (with local packages), uses name-based search
+  /// to handle different symbol IDs across packages.
   Future<QueryResult> _callersForSymbol(SymbolInfo sym) async {
-    final callers = registry != null
-        ? registry!.getCallers(sym.symbol)
-        : index.getCallers(sym.symbol).toList();
+    List<SymbolInfo> callers;
+
+    // If we have a registry with local indexes (workspace mode), use name-based search
+    if (registry != null && registry!.localIndexes.isNotEmpty) {
+      callers = registry!.findAllCallersByName(sym.name);
+    } else if (registry != null) {
+      callers = registry!.getCallers(sym.symbol);
+    } else {
+      callers = index.getCallers(sym.symbol).toList();
+    }
+
     return CallGraphResult(
       symbol: sym,
       direction: 'callers',
