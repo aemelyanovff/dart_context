@@ -69,7 +69,7 @@ void main() {
       test('returns indexed packages after indexing', () async {
         // Create a fake package index directory
         final pkgDir =
-            Directory('${tempDir.path}/.dart_context/packages/test_pkg-1.0.0');
+            Directory('${tempDir.path}/.dart_context/hosted/test_pkg-1.0.0');
         await pkgDir.create(recursive: true);
         await File('${pkgDir.path}/index.scip').writeAsString('');
         await File('${pkgDir.path}/manifest.json').writeAsString('{}');

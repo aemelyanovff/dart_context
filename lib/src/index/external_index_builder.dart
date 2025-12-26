@@ -147,6 +147,60 @@ class ExternalIndexBuilder {
     }
   }
 
+  /// Index a Flutter SDK package.
+  ///
+  /// [packagePath] should point to the package root in Flutter SDK packages/.
+  /// Saves to ~/.dart_context/flutter/{version}/{packageName}/.
+  Future<IndexResult> indexFlutterPackage(
+    String packageName,
+    String version,
+    String packagePath,
+  ) async {
+    final outputDir = _registry.flutterIndexPath(version, packageName);
+    await Directory(outputDir).create(recursive: true);
+
+    try {
+      // Index using scip_dart library
+      final index = await _indexDirectory(packagePath);
+      if (index == null) {
+        return IndexResult.failure('Failed to index Flutter package');
+      }
+
+      // Save the index
+      final outputPath = '$outputDir/index.scip';
+      await File(outputPath).writeAsBytes(index.writeToBuffer());
+
+      // Write manifest
+      await _writeManifest(
+        outputDir,
+        type: 'flutter',
+        name: packageName,
+        version: version,
+        sourcePath: packagePath,
+      );
+
+      // Load the index
+      final loadedIndex =
+          await _registry.loadFlutterPackage(version, packageName);
+      if (loadedIndex == null) {
+        return IndexResult.failure('Failed to load created Flutter index');
+      }
+
+      return IndexResult.success(
+        index: loadedIndex,
+        stats: {
+          'type': 'flutter',
+          'name': packageName,
+          'version': version,
+          'symbols': loadedIndex.stats['symbols'] ?? 0,
+          'files': loadedIndex.stats['files'] ?? 0,
+        },
+      );
+    } catch (e) {
+      return IndexResult.failure('Failed to index Flutter package: $e');
+    }
+  }
+
   /// Index a directory using scip_dart library.
   ///
   /// This uses a custom implementation that correctly handles packages
@@ -319,7 +373,8 @@ class ExternalIndexBuilder {
 
     for (final pkg in packages) {
       // Skip if already indexed (unless forcing)
-      if (!forceReindex && await _registry.hasPackageIndex(pkg.name, pkg.version)) {
+      if (!forceReindex &&
+          await _registry.hasPackageIndex(pkg.name, pkg.version)) {
         skippedResults.add(PackageIndexResult(
           name: pkg.name,
           version: pkg.version,
@@ -330,7 +385,8 @@ class ExternalIndexBuilder {
       }
 
       // Find package in pub cache
-      final packagePath = '$pubCachePath/hosted/pub.dev/${pkg.name}-${pkg.version}';
+      final packagePath =
+          '$pubCachePath/hosted/pub.dev/${pkg.name}-${pkg.version}';
       if (!await Directory(packagePath).exists()) {
         skippedResults.add(PackageIndexResult(
           name: pkg.name,
@@ -344,7 +400,8 @@ class ExternalIndexBuilder {
       toIndex.add((name: pkg.name, version: pkg.version, path: packagePath));
     }
 
-    onProgress?.call('Indexing ${toIndex.length} packages (${skippedResults.length} skipped)...');
+    onProgress?.call(
+        'Indexing ${toIndex.length} packages (${skippedResults.length} skipped)...');
 
     // Process packages in parallel with concurrency limit
     final indexedResults = <PackageIndexResult>[];
@@ -353,7 +410,7 @@ class ExternalIndexBuilder {
     // Process in batches for controlled concurrency
     for (var i = 0; i < toIndex.length; i += concurrency) {
       final batch = toIndex.skip(i).take(concurrency).toList();
-      
+
       final batchFutures = batch.map((pkg) async {
         final result = await indexPackage(pkg.name, pkg.version, pkg.path);
         return PackageIndexResult(
@@ -372,12 +429,14 @@ class ExternalIndexBuilder {
       for (final result in batchResults) {
         if (result.success) {
           indexed++;
-          onProgress?.call('Indexed ${result.name}: ${result.symbolCount} symbols');
+          onProgress
+              ?.call('Indexed ${result.name}: ${result.symbolCount} symbols');
         }
       }
     }
 
-    onProgress?.call('Completed: $indexed indexed, ${skippedResults.length} skipped');
+    onProgress
+        ?.call('Completed: $indexed indexed, ${skippedResults.length} skipped');
 
     return BatchIndexResult(
       success: true,
@@ -468,7 +527,7 @@ class ExternalIndexBuilder {
       }
 
       onProgress?.call('Indexing $pkgName...');
-      final result = await indexPackage(pkgName, version, pkgPath);
+      final result = await indexFlutterPackage(pkgName, version, pkgPath);
 
       if (result.success) {
         onProgress?.call('$pkgName: ${result.stats?['symbols']} symbols');
@@ -536,9 +595,9 @@ class ExternalIndexBuilder {
         .toList();
   }
 
-  /// List available package indexes.
+  /// List available package indexes (hosted packages).
   Future<List<({String name, String version})>> listPackageIndexes() async {
-    final dir = Directory('${_registry.globalCachePath}/packages');
+    final dir = Directory('${_registry.globalCachePath}/hosted');
     if (!await dir.exists()) return [];
 
     final results = <({String name, String version})>[];
@@ -594,10 +653,13 @@ class ExternalIndexBuilder {
     }
 
     // Default locations
-    final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
+    final home =
+        Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
     if (home == null) return null;
 
-    final defaultPath = Platform.isWindows ? '$home\\AppData\\Local\\Pub\\Cache' : '$home/.pub-cache';
+    final defaultPath = Platform.isWindows
+        ? '$home\\AppData\\Local\\Pub\\Cache'
+        : '$home/.pub-cache';
 
     if (await Directory(defaultPath).exists()) {
       return defaultPath;
@@ -622,7 +684,8 @@ class IndexResult {
   }) =>
       IndexResult._(success: true, index: index, stats: stats);
 
-  factory IndexResult.failure(String error) => IndexResult._(success: false, error: error);
+  factory IndexResult.failure(String error) =>
+      IndexResult._(success: false, error: error);
 
   final bool success;
   final ScipIndex? index;
@@ -692,5 +755,3 @@ class FlutterIndexResult {
   int get totalSymbols =>
       results.fold(0, (sum, r) => sum + (r.symbolCount ?? 0));
 }
-
-

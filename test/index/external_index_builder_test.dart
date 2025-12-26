@@ -167,8 +167,8 @@ sdks:
   dart: ">=3.0.0 <4.0.0"
 ''');
 
-        // Mark collection as already indexed
-        final indexDir = Directory('${registry.globalCachePath}/packages/collection-1.18.0');
+        // Mark collection as already indexed (using new 'hosted/' path)
+        final indexDir = Directory('${registry.globalCachePath}/hosted/collection-1.18.0');
         await indexDir.create(recursive: true);
         await File('${indexDir.path}/manifest.json').writeAsString('{}');
         await File('${indexDir.path}/index.scip').writeAsBytes([]);
@@ -297,11 +297,11 @@ sdks:
 
       test('returns available package indexes', () async {
         // Create fake package index dirs
-        final pkgDir = Directory('${registry.globalCachePath}/packages/analyzer-6.3.0');
+        final pkgDir = Directory('${registry.globalCachePath}/hosted/analyzer-6.3.0');
         await pkgDir.create(recursive: true);
         await File('${pkgDir.path}/manifest.json').writeAsString('{}');
 
-        final pkgDir2 = Directory('${registry.globalCachePath}/packages/collection-1.18.0');
+        final pkgDir2 = Directory('${registry.globalCachePath}/hosted/collection-1.18.0');
         await pkgDir2.create(recursive: true);
         await File('${pkgDir2.path}/manifest.json').writeAsString('{}');
 

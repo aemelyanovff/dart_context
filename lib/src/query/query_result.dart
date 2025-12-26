@@ -221,10 +221,18 @@ class ReferenceMatch {
   const ReferenceMatch({
     required this.location,
     this.context,
+    this.sourceRoot,
   });
 
   final OccurrenceInfo location;
   final String? context;
+
+  /// Source root for resolving file paths (useful in workspace mode).
+  final String? sourceRoot;
+
+  /// Get the full file path.
+  String get fullPath =>
+      sourceRoot != null ? '$sourceRoot/${location.file}' : location.file;
 }
 
 /// Result containing class members.

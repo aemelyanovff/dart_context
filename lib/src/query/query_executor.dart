@@ -728,66 +728,103 @@ class QueryExecutor {
   /// Find references for a single symbol.
   ///
   /// Uses [registry] for cross-package reference search when available.
+  /// For workspace mode (with local packages), searches by symbol name
+  /// to handle different symbol IDs across packages.
   Future<QueryResult> _refsForSingleSymbol(SymbolInfo sym) async {
-    final allRefs = <OccurrenceInfo>[];
-
-    // Get direct references to this symbol from all indexes
-    if (registry != null) {
-      allRefs.addAll(registry!.findAllReferences(sym.symbol));
-    } else {
-      allRefs.addAll(index.findReferences(sym.symbol));
-    }
-
-    // For classes, also include constructor call references
-    // (constructor calls are indexed as refs to the constructor, not the class)
-    if (sym.kindString == 'class') {
-      final constructors = registry != null
-          ? registry!.membersOf(sym.symbol).where(
-                (m) => m.kindString == 'constructor',
-              )
-          : index.membersOf(sym.symbol).where(
-                (m) => m.kindString == 'constructor',
-              );
-      for (final ctor in constructors) {
-        if (registry != null) {
-          allRefs.addAll(registry!.findAllReferences(ctor.symbol));
-        } else {
-          allRefs.addAll(index.findReferences(ctor.symbol));
-        }
-      }
-    }
-
-    // Deduplicate by file+line to avoid showing the same location twice
-    final seen = <String>{};
-    final uniqueRefs = allRefs.where((ref) {
-      final key = '${ref.file}:${ref.line}';
-      if (seen.contains(key)) return false;
-      seen.add(key);
-      return true;
-    }).toList();
-
     final referenceMatches = <ReferenceMatch>[];
-    for (final ref in uniqueRefs) {
-      // Get context from the appropriate index
-      String? context;
+
+    // If we have a registry with local indexes (workspace mode), use name-based search
+    if (registry != null && registry!.localIndexes.isNotEmpty) {
+      // Use name-based search for workspace cross-package queries
+      final results = registry!.findAllReferencesByName(
+        sym.name,
+        symbolKind: sym.kindString,
+      );
+
+      // Deduplicate by sourceRoot+file+line
+      final seen = <String>{};
+      for (final result in results) {
+        final key = '${result.sourceRoot}/${result.ref.file}:${result.ref.line}';
+        if (seen.contains(key)) continue;
+        seen.add(key);
+
+        // Get context - need to resolve full path
+        String? context;
+        final fullPath = '${result.sourceRoot}/${result.ref.file}';
+        final file = File(fullPath);
+        if (await file.exists()) {
+          final lines = await file.readAsLines();
+          final start = (result.ref.line - 2).clamp(0, lines.length);
+          final end = (result.ref.line + 3).clamp(0, lines.length);
+          context = lines.sublist(start, end).join('\n');
+        }
+
+        referenceMatches.add(
+          ReferenceMatch(
+            location: result.ref,
+            context: context,
+            sourceRoot: result.sourceRoot,
+          ),
+        );
+      }
+    } else {
+      // Standard mode - use exact symbol ID matching
+      final allRefs = <OccurrenceInfo>[];
+
+      // Get direct references to this symbol from all indexes
       if (registry != null) {
-        // Find which index owns this file and get context from it
-        for (final idx in registry!.allIndexes) {
-          if (idx.files.contains(ref.file)) {
-            context = await idx.getContext(ref);
-            break;
+        allRefs.addAll(registry!.findAllReferences(sym.symbol));
+      } else {
+        allRefs.addAll(index.findReferences(sym.symbol));
+      }
+
+      // For classes, also include constructor call references
+      if (sym.kindString == 'class') {
+        final constructors = registry != null
+            ? registry!.membersOf(sym.symbol).where(
+                  (m) => m.kindString == 'constructor',
+                )
+            : index.membersOf(sym.symbol).where(
+                  (m) => m.kindString == 'constructor',
+                );
+        for (final ctor in constructors) {
+          if (registry != null) {
+            allRefs.addAll(registry!.findAllReferences(ctor.symbol));
+          } else {
+            allRefs.addAll(index.findReferences(ctor.symbol));
           }
         }
-      } else {
-        context = await index.getContext(ref);
       }
 
-      referenceMatches.add(
-        ReferenceMatch(
-          location: ref,
-          context: context,
-        ),
-      );
+      // Deduplicate by file+line
+      final seen = <String>{};
+      final uniqueRefs = allRefs.where((ref) {
+        final key = '${ref.file}:${ref.line}';
+        if (seen.contains(key)) return false;
+        seen.add(key);
+        return true;
+      }).toList();
+
+      for (final ref in uniqueRefs) {
+        String? context;
+        if (registry != null) {
+          for (final idx in registry!.allIndexes) {
+            if (idx.files.contains(ref.file)) {
+              context = await idx.getContext(ref);
+              break;
+            }
+          }
+        } else {
+          context = await index.getContext(ref);
+        }
+
+        referenceMatches.add(
+          ReferenceMatch(
+            location: ref,
+            context: context,
+          ),
+        );
+      }
     }
 
     return ReferencesResult(

@@ -80,8 +80,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `dart_index_flutter` - Index Flutter SDK packages
 - `dart_index_deps` - Index pub dependencies from pubspec.lock
 - `dart_refresh` - Refresh project index and reload dependencies
-- `dart_status` - Show index status (files, symbols, loaded packages)
+- `dart_status` - Show index status (files, symbols, loaded packages, workspace info)
 - `bin/mcp_server.dart` - Ready-to-use MCP server for Cursor integration
+
+#### Mono Repo / Workspace Support
+- **Workspace detection** - Automatically detects Melos and Dart 3.0+ pub workspaces
+- **Cross-package queries** - Query symbols across local workspace packages
+- **Unified file watching** - Single watcher at workspace root for all packages
+- **Workspace registry** - Central location for local package indexes
+
+#### CLI Workspace Commands
+- `workspace info` - Show detected workspace type and packages
+- `workspace index` - Index all packages in the workspace
+- `workspace sync` - Sync package indexes to workspace registry
+
+#### Cache Infrastructure
+- `CachePaths` - Centralized cache path management
+- Global cache at `~/.dart_context/` mirrors pub-cache structure
+- Support for hosted, git, and path dependencies
+- `package_config.json` parsing for accurate dependency resolution
 
 ### Performance
 - Initial indexing: ~10-15s for 85 files

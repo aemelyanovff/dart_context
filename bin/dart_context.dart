@@ -4,9 +4,11 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:dart_context/dart_context.dart';
+import 'package:dart_context/src/cache/cache_paths.dart';
 import 'package:dart_context/src/index/external_index_builder.dart';
 import 'package:dart_context/src/index/index_registry.dart';
 import 'package:dart_context/src/index/scip_index.dart';
+import 'package:dart_context/src/workspace/workspace_detector.dart';
 
 void main(List<String> arguments) async {
   // Check for subcommands first
@@ -23,6 +25,9 @@ void main(List<String> arguments) async {
         return;
       case 'list-indexes':
         await _listIndexes();
+        return;
+      case 'workspace':
+        await _workspace(arguments.skip(1).toList());
         return;
     }
   }
@@ -225,6 +230,13 @@ void _printUsage(ArgParser parser) {
   stdout.writeln('  dart_context index-sdk /path/to/dart-sdk');
   stdout.writeln('  dart_context index-deps');
   stdout.writeln('  dart_context --with-deps "hierarchy MyClass"');
+  stdout.writeln('');
+  stdout.writeln('Workspace commands (for mono repos):');
+  stdout.writeln('  dart_context workspace info      Show workspace info');
+  stdout.writeln(
+      '  dart_context workspace index     Index all workspace packages');
+  stdout.writeln(
+      '  dart_context workspace sync      Sync package indexes to registry');
 }
 
 void _printResult(QueryResult result, String format) {
@@ -653,4 +665,200 @@ Future<void> _listIndexes() async {
 
   stdout.writeln('To index SDK: dart_context index-sdk <path>');
   stdout.writeln('To index deps: dart_context index-deps');
+}
+
+/// Handle workspace commands.
+Future<void> _workspace(List<String> args) async {
+  if (args.isEmpty) {
+    _printWorkspaceHelp();
+    return;
+  }
+
+  final subcommand = args.first;
+  final path = args.length > 1 ? args[1] : '.';
+
+  switch (subcommand) {
+    case 'info':
+      await _workspaceInfo(path);
+    case 'index':
+      await _workspaceIndex(path);
+    case 'sync':
+      await _workspaceSync(path);
+    case 'help':
+    case '--help':
+    case '-h':
+      _printWorkspaceHelp();
+    default:
+      stderr.writeln('Unknown workspace command: $subcommand');
+      _printWorkspaceHelp();
+      exit(1);
+  }
+}
+
+void _printWorkspaceHelp() {
+  stdout.writeln('Workspace commands for mono repos:');
+  stdout.writeln('');
+  stdout.writeln('Usage: dart_context workspace <command> [path]');
+  stdout.writeln('');
+  stdout.writeln('Commands:');
+  stdout.writeln('  info   Show detected workspace information');
+  stdout.writeln('  index  Index all packages in the workspace');
+  stdout.writeln('  sync   Sync package indexes to the workspace registry');
+  stdout.writeln('');
+  stdout.writeln('Arguments:');
+  stdout.writeln(
+      '  [path]  Path to any package in the workspace (defaults to .)');
+  stdout.writeln('');
+  stdout.writeln('Examples:');
+  stdout.writeln('  dart_context workspace info');
+  stdout.writeln('  dart_context workspace info /path/to/monorepo');
+  stdout.writeln('  dart_context workspace index');
+}
+
+/// Show workspace info.
+Future<void> _workspaceInfo(String path) async {
+  final workspace = await detectWorkspace(path);
+
+  if (workspace == null) {
+    stderr.writeln('No workspace detected at $path');
+    stderr.writeln('');
+    stderr.writeln('A workspace requires either:');
+    stderr.writeln('  - melos.yaml (Melos mono repo)');
+    stderr.writeln(
+        '  - pubspec.yaml with "workspace:" field (Dart 3.0+ workspace)');
+    exit(1);
+  }
+
+  stdout.writeln('Workspace Information');
+  stdout.writeln('=====================');
+  stdout.writeln('');
+  stdout.writeln('Type: ${workspace.type.name}');
+  stdout.writeln('Root: ${workspace.rootPath}');
+  stdout.writeln('Packages: ${workspace.packages.length}');
+  stdout.writeln('');
+
+  if (workspace.melosConfig != null) {
+    stdout.writeln('Melos Configuration:');
+    stdout.writeln('  Name: ${workspace.melosConfig!.name}');
+    stdout.writeln('  Package globs:');
+    for (final glob in workspace.melosConfig!.packageGlobs) {
+      stdout.writeln('    - $glob');
+    }
+    if (workspace.melosConfig!.ignoreGlobs.isNotEmpty) {
+      stdout.writeln('  Ignore globs:');
+      for (final glob in workspace.melosConfig!.ignoreGlobs) {
+        stdout.writeln('    - $glob');
+      }
+    }
+    stdout.writeln('');
+  }
+
+  stdout.writeln('Packages:');
+  for (final pkg in workspace.packages) {
+    stdout.writeln('  ${pkg.name}');
+    stdout.writeln('    Path: ${pkg.relativePath}');
+  }
+  stdout.writeln('');
+
+  // Check for existing workspace registry
+  final registryPath = CachePaths.workspaceDir(workspace.rootPath);
+  final registryExists = await Directory(registryPath).exists();
+  stdout.writeln(
+      'Registry: ${registryExists ? registryPath : "(not initialized)"}');
+
+  if (registryExists) {
+    // Count indexed packages
+    final localDir = Directory('$registryPath/local');
+    if (await localDir.exists()) {
+      final indexed = await localDir.list().where((e) => e is Directory).length;
+      stdout.writeln('Indexed packages: $indexed');
+    }
+  }
+}
+
+/// Index all workspace packages.
+Future<void> _workspaceIndex(String path) async {
+  final workspace = await detectWorkspace(path);
+
+  if (workspace == null) {
+    stderr.writeln('No workspace detected at $path');
+    exit(1);
+  }
+
+  stdout.writeln(
+      'Indexing ${workspace.packages.length} packages in ${workspace.type.name} workspace...');
+  stdout.writeln('');
+
+  final stopwatch = Stopwatch()..start();
+  var indexed = 0;
+  var failed = 0;
+
+  for (final pkg in workspace.packages) {
+    stdout.write('  ${pkg.name}... ');
+    try {
+      // Create a context for this package (which triggers indexing)
+      final context = await DartContext.open(
+        pkg.absolutePath,
+        watch: false,
+        useCache: true,
+        loadDependencies: false,
+      );
+
+      stdout.writeln('✓ ${context.stats['symbols']} symbols');
+      indexed++;
+
+      await context.dispose();
+    } catch (e) {
+      stdout.writeln('✗ $e');
+      failed++;
+    }
+  }
+
+  stopwatch.stop();
+  stdout.writeln('');
+  stdout.writeln('Results:');
+  stdout.writeln('  Indexed: $indexed');
+  stdout.writeln('  Failed: $failed');
+  stdout.writeln('  Time: ${stopwatch.elapsed.inSeconds}s');
+}
+
+/// Sync package indexes to workspace registry.
+Future<void> _workspaceSync(String path) async {
+  final workspace = await detectWorkspace(path);
+
+  if (workspace == null) {
+    stderr.writeln('No workspace detected at $path');
+    exit(1);
+  }
+
+  stdout.writeln(
+      'Syncing ${workspace.packages.length} packages to workspace registry...');
+  stdout.writeln('');
+
+  final registryPath = CachePaths.workspaceDir(workspace.rootPath);
+  final localPath = '$registryPath/local';
+  await Directory(localPath).create(recursive: true);
+
+  var synced = 0;
+  var missing = 0;
+
+  for (final pkg in workspace.packages) {
+    final sourcePath = CachePaths.packageWorkingIndex(pkg.absolutePath);
+    final destPath = CachePaths.localPackageIndex(workspace.rootPath, pkg.name);
+
+    if (await File(sourcePath).exists()) {
+      await Directory(CachePaths.localPackageDir(workspace.rootPath, pkg.name))
+          .create(recursive: true);
+      await File(sourcePath).copy(destPath);
+      stdout.writeln('  ✓ ${pkg.name}');
+      synced++;
+    } else {
+      stdout.writeln('  ✗ ${pkg.name} (not indexed)');
+      missing++;
+    }
+  }
+
+  stdout.writeln('');
+  stdout.writeln('Synced: $synced');
+  stdout.writeln('Missing: $missing (run "workspace index" first)');
 }

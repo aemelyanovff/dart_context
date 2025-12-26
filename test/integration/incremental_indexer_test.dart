@@ -367,9 +367,11 @@ environment:
   sdk: ^3.0.0
 ''');
 
+          // The error type depends on whether workspace detection fails or indexer fails
+          // Either StateError (from indexer) or PathNotFoundException (from io)
           expect(
             () => DartContext.open(invalidDir.path),
-            throwsA(isA<StateError>()),
+            throwsA(anyOf(isA<StateError>(), isA<PathNotFoundException>())),
           );
         } finally {
           await invalidDir.delete(recursive: true);

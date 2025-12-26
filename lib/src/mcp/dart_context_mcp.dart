@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:dart_mcp/server.dart';
 
+import '../cache/cache_paths.dart';
 import '../dart_context.dart';
 import '../index/external_index_builder.dart';
 import '../index/index_registry.dart';
@@ -335,7 +336,8 @@ base mixin DartContextSupport on ToolsSupport, RootsTrackingSupport {
         }
       }
       output.writeln('');
-      output.writeln('Indexes saved to: ${registry.globalCachePath}/packages/');
+      output.writeln(
+          'Indexes saved to: ${registry.globalCachePath}/flutter/${result.version}/');
 
       return CallToolResult(
         content: [TextContent(text: output.toString())],
@@ -557,6 +559,17 @@ base mixin DartContextSupport on ToolsSupport, RootsTrackingSupport {
       output.writeln('References: ${context.stats['references']}');
       output.writeln('');
 
+      // Show workspace info if part of a mono repo
+      if (context.isWorkspace && context.workspace != null) {
+        final ws = context.workspace!;
+        output.writeln('### Workspace');
+        output.writeln('');
+        output.writeln('Type: ${ws.type.name}');
+        output.writeln('Root: ${ws.rootPath}');
+        output.writeln('Packages: ${ws.packages.length}');
+        output.writeln('');
+      }
+
       if (context.hasDependencies) {
         final registry = context.registry!;
         output.writeln('### External Indexes');
@@ -564,16 +577,39 @@ base mixin DartContextSupport on ToolsSupport, RootsTrackingSupport {
         if (registry.loadedSdkVersion != null) {
           output.writeln('SDK: Dart ${registry.loadedSdkVersion}');
         }
-        output.writeln('Packages loaded: ${registry.packageIndexes.length}');
+        if (registry.loadedFlutterVersion != null) {
+          output.writeln(
+              'Flutter: ${registry.loadedFlutterVersion} (${registry.flutterIndexes.length} packages)');
+        }
+
+        // Show hosted packages
+        output.writeln('Hosted packages: ${registry.packageIndexes.length}');
         if (registry.packageIndexes.isNotEmpty) {
-          output.writeln('');
-          final pkgNames = registry.packageIndexes.keys.take(10).toList();
+          final pkgNames = registry.packageIndexes.keys.take(5).toList();
           for (final name in pkgNames) {
             output.writeln('  - $name');
           }
-          if (registry.packageIndexes.length > 10) {
+          if (registry.packageIndexes.length > 5) {
             output.writeln(
-                '  ... and ${registry.packageIndexes.length - 10} more');
+                '  ... and ${registry.packageIndexes.length - 5} more');
+          }
+        }
+
+        // Show git packages
+        if (registry.gitIndexes.isNotEmpty) {
+          output.writeln('Git packages: ${registry.gitIndexes.length}');
+          final gitNames = registry.gitIndexes.keys.take(5).toList();
+          for (final name in gitNames) {
+            output.writeln('  - $name');
+          }
+        }
+
+        // Show local (workspace) packages
+        if (registry.localIndexes.isNotEmpty) {
+          output.writeln('Local packages: ${registry.localIndexes.length}');
+          final localNames = registry.localIndexes.keys.take(5).toList();
+          for (final name in localNames) {
+            output.writeln('  - $name');
           }
         }
       } else {
@@ -589,6 +625,7 @@ base mixin DartContextSupport on ToolsSupport, RootsTrackingSupport {
     final builder = ExternalIndexBuilder(registry: tempRegistry);
 
     final sdkVersions = await builder.listSdkIndexes();
+    final flutterVersions = await CachePaths.listFlutterVersions();
     final packages = await builder.listPackageIndexes();
     final packageSet = packages.map((p) => p.name).toSet();
 
@@ -597,6 +634,8 @@ base mixin DartContextSupport on ToolsSupport, RootsTrackingSupport {
     output.writeln('');
     output.writeln(
         'SDK versions: ${sdkVersions.isEmpty ? "(none)" : sdkVersions.join(", ")}');
+    output.writeln(
+        'Flutter versions: ${flutterVersions.isEmpty ? "(none)" : flutterVersions.join(", ")}');
     output.writeln('Package indexes: ${packages.length}');
 
     // Check for Flutter project and give hints
@@ -612,7 +651,7 @@ base mixin DartContextSupport on ToolsSupport, RootsTrackingSupport {
         output.writeln('');
 
         // Check if Flutter indexes are missing for Flutter project
-        final hasFlutterIndexes = packages.any((p) => p.name == 'flutter');
+        final hasFlutterIndexes = flutterVersions.isNotEmpty;
         if (isFlutter && !hasFlutterIndexes) {
           output.writeln(
               '⚠️ Flutter project detected but Flutter SDK not indexed.');

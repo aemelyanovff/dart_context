@@ -291,18 +291,18 @@ dart_context --with-deps "hierarchy MyWidget"
 dart_context --with-deps "grep Navigator -D -l"
 ```
 
-Indexes are stored in `~/.dart_context/`:
+Indexes are stored in `~/.dart_context/` with a structure that mirrors pub cache:
 ```
-~/.dart_context/
-  sdk/
-    3.2.0/
-      index.scip
-      manifest.json
-  packages/
-    collection-1.18.0/
-      index.scip
-    analyzer-6.3.0/
-      index.scip
+~/.dart_context/                      # Global cache
+├── sdk/
+│   └── 3.2.0/index.scip             # Dart SDK indexes
+├── flutter/
+│   └── 3.32.0/flutter/index.scip    # Flutter SDK packages
+├── hosted/
+│   ├── collection-1.18.0/index.scip # Pub packages
+│   └── analyzer-6.3.0/index.scip
+└── git/
+    └── fluxon-bfef6c5e/index.scip   # Git dependencies
 ```
 
 This enables queries like:
@@ -311,6 +311,56 @@ This enables queries like:
 - `refs StatefulWidget` - Find all uses of Flutter's StatefulWidget
 
 **Note**: Pre-indexing is optional and takes time. By default, dart_context only indexes your project code.
+
+### Mono Repo / Workspace Support
+
+dart_context automatically detects and supports mono repo workspaces:
+
+- **Melos workspaces** (projects with `melos.yaml`)
+- **Dart 3.0+ pub workspaces** (pubspec.yaml with `workspace:` field)
+
+```bash
+# Show workspace information
+dart_context workspace info
+
+# Index all packages in the workspace
+dart_context workspace index
+
+# Sync package indexes to workspace registry
+dart_context workspace sync
+```
+
+For mono repos, indexes are stored in two locations:
+
+```
+/path/to/monorepo/
+├── .dart_context/                    # Workspace registry
+│   ├── workspace.json                # Workspace metadata
+│   └── local/                        # Local package indexes
+│       ├── hologram_core/index.scip
+│       └── hologram_shared/index.scip
+└── packages/
+    └── hologram_core/
+        └── .dart_context/            # Per-package working index
+            └── index.scip
+```
+
+When opening a project that's part of a workspace:
+- Cross-package queries work automatically between workspace packages
+- A single file watcher at the workspace root handles all packages
+- Changes to one package update both its index and the workspace registry
+
+```dart
+// Opening a workspace package
+final context = await DartContext.open('/path/to/monorepo/packages/my_app');
+
+// Workspace info is available
+print(context.workspace?.type); // melos, pubWorkspace, or single
+print(context.workspace?.packages.length);
+
+// Cross-package queries work seamlessly
+final result = await context.query('refs SharedUtils'); // Finds refs in other packages
+```
 
 ## Performance
 

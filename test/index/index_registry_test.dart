@@ -75,7 +75,7 @@ void main() {
       test('stats includes project info', () {
         final stats = registry.stats;
         expect(stats['sdkLoaded'], false);
-        expect(stats['packagesLoaded'], 0);
+        expect(stats['hostedPackagesLoaded'], 0);
         expect(stats['project'], isNotNull);
       });
     });
@@ -369,9 +369,9 @@ void main() {
         );
 
         final stats = reg.stats;
-        expect(stats['packagesLoaded'], 2);
+        expect(stats['hostedPackagesLoaded'], 2);
         expect(
-          stats['packageNames'],
+          stats['hostedPackageNames'],
           containsAll(['pkg1-1.0.0', 'pkg2-2.0.0']),
         );
       });
