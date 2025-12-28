@@ -93,7 +93,7 @@ class ScipIndex {
   ///
   /// Useful for bootstrapping when you need an index instance but don't
   /// have any data yet.
-  static ScipIndex empty({required String projectRoot, String? sourceRoot}) {
+  static ScipIndex empty({String projectRoot = '', String? sourceRoot}) {
     return ScipIndex._(
       symbolIndex: {},
       referenceIndex: {},

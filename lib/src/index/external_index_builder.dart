@@ -16,7 +16,7 @@ import 'package:scip_dart/src/scip_visitor.dart';
 import 'package:scip_dart/src/version.dart';
 
 import '../utils/pubspec_utils.dart';
-import 'index_registry.dart';
+import 'package_registry.dart';
 import 'scip_index.dart';
 
 /// Builds SCIP indexes for external dependencies (SDK, packages).
@@ -36,10 +36,10 @@ import 'scip_index.dart';
 /// ```
 class ExternalIndexBuilder {
   ExternalIndexBuilder({
-    required IndexRegistry registry,
+    required PackageRegistry registry,
   }) : _registry = registry;
 
-  final IndexRegistry _registry;
+  final PackageRegistry _registry;
 
   /// Index the Dart SDK.
   ///
@@ -127,7 +127,7 @@ class ExternalIndexBuilder {
       );
 
       // Load the index
-      final loadedIndex = await _registry.loadPackage(name, version);
+      final loadedIndex = await _registry.loadHostedPackage(name, version);
       if (loadedIndex == null) {
         return IndexResult.failure('Failed to load created index');
       }
@@ -374,7 +374,7 @@ class ExternalIndexBuilder {
     for (final pkg in packages) {
       // Skip if already indexed (unless forcing)
       if (!forceReindex &&
-          await _registry.hasPackageIndex(pkg.name, pkg.version)) {
+          await _registry.hasHostedIndex(pkg.name, pkg.version)) {
         skippedResults.add(PackageIndexResult(
           name: pkg.name,
           version: pkg.version,

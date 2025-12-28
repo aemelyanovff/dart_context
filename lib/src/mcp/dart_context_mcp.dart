@@ -6,12 +6,9 @@ import 'package:dart_mcp/server.dart';
 import '../cache/cache_paths.dart';
 import '../dart_context.dart';
 import '../index/external_index_builder.dart';
-import '../index/index_registry.dart';
-import '../index/scip_index.dart';
+import '../index/package_registry.dart';
 import '../utils/pubspec_utils.dart';
-
-/// Version of dart_context package.
-const dartContextVersion = '0.1.0';
+import '../version.dart';
 
 /// Mix this in to any MCPServer to add Dart code intelligence via dart_context.
 ///
@@ -180,7 +177,7 @@ base mixin DartContextSupport on ToolsSupport, RootsTrackingSupport {
           _watchPackageConfig(root.uri, rootPath);
 
           final depsInfo = context.hasDependencies
-              ? ', ${context.registry!.packageIndexes.length} packages loaded'
+              ? ', ${context.registry.packageIndexes.length} packages loaded'
               : '';
           log(
             LoggingLevel.info,
@@ -232,7 +229,7 @@ base mixin DartContextSupport on ToolsSupport, RootsTrackingSupport {
       _watchPackageConfig(firstRoot.uri, rootPath);
 
       final depsInfo = context.hasDependencies
-          ? ', ${context.registry!.packageIndexes.length} packages loaded'
+          ? ', ${context.registry.packageIndexes.length} packages loaded'
           : '';
       log(
         LoggingLevel.info,
@@ -297,8 +294,7 @@ base mixin DartContextSupport on ToolsSupport, RootsTrackingSupport {
     final flutterRoot = request.arguments?['flutterRoot'] as String?;
 
     // Create a temporary registry for building
-    final tempIndex = ScipIndex.empty(projectRoot: flutterRoot ?? '.');
-    final registry = IndexRegistry(projectIndex: tempIndex);
+    final registry = PackageRegistry(rootPath: flutterRoot ?? '.');
     final builder = ExternalIndexBuilder(registry: registry);
 
     final messages = <String>[];
@@ -387,8 +383,7 @@ base mixin DartContextSupport on ToolsSupport, RootsTrackingSupport {
     log(LoggingLevel.info, 'Indexing dependencies from $projectPath...');
 
     // Create a temporary registry for building
-    final tempIndex = ScipIndex.empty(projectRoot: projectPath);
-    final registry = IndexRegistry(projectIndex: tempIndex);
+    final registry = PackageRegistry(rootPath: projectPath);
     final builder = ExternalIndexBuilder(registry: registry);
 
     try {
@@ -492,7 +487,7 @@ base mixin DartContextSupport on ToolsSupport, RootsTrackingSupport {
       _watchPackageConfig(targetRoot.uri, rootPath);
 
       final depsInfo = context.hasDependencies
-          ? ', ${context.registry!.packageIndexes.length} packages loaded'
+          ? ', ${context.registry.packageIndexes.length} packages loaded'
           : '';
 
       final output = StringBuffer();
@@ -500,7 +495,7 @@ base mixin DartContextSupport on ToolsSupport, RootsTrackingSupport {
       output.writeln('Files: ${context.stats['files']}');
       output.writeln('Symbols: ${context.stats['symbols']}');
       if (context.hasDependencies) {
-        output.writeln('Packages: ${context.registry!.packageIndexes.length}');
+        output.writeln('Packages: ${context.registry.packageIndexes.length}');
       }
 
       log(
@@ -553,25 +548,29 @@ base mixin DartContextSupport on ToolsSupport, RootsTrackingSupport {
       output.writeln(
           'Use dart_query to trigger indexing, or dart_refresh to reload.');
     } else {
-      output.writeln('Project: ${context.projectRoot}');
+      output.writeln('Project: ${context.rootPath}');
       output.writeln('Files: ${context.stats['files']}');
       output.writeln('Symbols: ${context.stats['symbols']}');
-      output.writeln('References: ${context.stats['references']}');
+      output.writeln('References: ${context.stats['references'] ?? 0}');
       output.writeln('');
 
-      // Show workspace info if part of a mono repo
-      if (context.isWorkspace && context.workspace != null) {
-        final ws = context.workspace!;
-        output.writeln('### Workspace');
+      // Show discovered packages
+      final registry = context.registry;
+      final localPkgs = registry.localPackages.keys.toList();
+      if (localPkgs.isNotEmpty) {
+        output.writeln('### Local Packages (${localPkgs.length})');
         output.writeln('');
-        output.writeln('Type: ${ws.type.name}');
-        output.writeln('Root: ${ws.rootPath}');
-        output.writeln('Packages: ${ws.packages.length}');
+        for (final pkg in localPkgs.take(10)) {
+          output.writeln('  - $pkg');
+        }
+        if (localPkgs.length > 10) {
+          output.writeln('  ... and ${localPkgs.length - 10} more');
+        }
         output.writeln('');
       }
 
+      // Show external indexes
       if (context.hasDependencies) {
-        final registry = context.registry!;
         output.writeln('### External Indexes');
         output.writeln('');
         if (registry.loadedSdkVersion != null) {
@@ -579,26 +578,31 @@ base mixin DartContextSupport on ToolsSupport, RootsTrackingSupport {
         }
         if (registry.loadedFlutterVersion != null) {
           output.writeln(
-              'Flutter: ${registry.loadedFlutterVersion} (${registry.flutterIndexes.length} packages)');
+              'Flutter: ${registry.loadedFlutterVersion} (${registry.flutterPackages.length} packages)');
         }
 
         // Show hosted packages
-        output.writeln('Hosted packages: ${registry.packageIndexes.length}');
-        if (registry.packageIndexes.isNotEmpty) {
-          final pkgNames = registry.packageIndexes.keys.take(5).toList();
+        output.writeln('Hosted packages: ${registry.hostedPackages.length}');
+        if (registry.hostedPackages.isNotEmpty) {
+          final pkgNames = registry.hostedPackages.keys.take(5).toList();
           for (final name in pkgNames) {
             output.writeln('  - $name');
           }
-          if (registry.packageIndexes.length > 5) {
+          if (registry.hostedPackages.length > 5) {
             output.writeln(
-                '  ... and ${registry.packageIndexes.length - 5} more');
+                '  ... and ${registry.hostedPackages.length - 5} more');
           }
+        }
+        
+        // Show git packages
+        if (registry.gitPackages.isNotEmpty) {
+          output.writeln('Git packages: ${registry.gitPackages.length}');
         }
 
         // Show git packages
-        if (registry.gitIndexes.isNotEmpty) {
-          output.writeln('Git packages: ${registry.gitIndexes.length}');
-          final gitNames = registry.gitIndexes.keys.take(5).toList();
+        if (registry.gitPackages.isNotEmpty) {
+          output.writeln('Git packages: ${registry.gitPackages.length}');
+          final gitNames = registry.gitPackages.keys.take(5).toList();
           for (final name in gitNames) {
             output.writeln('  - $name');
           }
@@ -620,8 +624,7 @@ base mixin DartContextSupport on ToolsSupport, RootsTrackingSupport {
     }
 
     // Also show available indexes on disk
-    final tempIndex = ScipIndex.empty(projectRoot: '.');
-    final tempRegistry = IndexRegistry(projectIndex: tempIndex);
+    final tempRegistry = PackageRegistry(rootPath: '.');
     final builder = ExternalIndexBuilder(registry: tempRegistry);
 
     final sdkVersions = await builder.listSdkIndexes();
@@ -917,3 +920,4 @@ Use to verify indexing is complete before querying.''',
     ),
   );
 }
+

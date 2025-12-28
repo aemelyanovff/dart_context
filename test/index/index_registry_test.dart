@@ -1,5 +1,5 @@
 // ignore_for_file: implementation_imports
-import 'package:dart_context/src/index/index_registry.dart';
+import 'package:dart_context/src/index/package_registry.dart';
 import 'package:dart_context/src/index/scip_index.dart';
 import 'package:scip_dart/src/gen/scip.pb.dart' as scip;
 import 'package:test/test.dart';

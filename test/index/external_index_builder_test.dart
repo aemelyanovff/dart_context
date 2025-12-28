@@ -1,15 +1,14 @@
 import 'dart:io';
 
 import 'package:dart_context/src/index/external_index_builder.dart';
-import 'package:dart_context/src/index/index_registry.dart';
-import 'package:dart_context/src/index/scip_index.dart';
+import 'package:dart_context/src/index/package_registry.dart';
 import 'package:test/test.dart';
 
 void main() {
   group('ExternalIndexBuilder', () {
     late Directory tempDir;
     late Directory cacheDir;
-    late IndexRegistry registry;
+    late PackageRegistry registry;
     late ExternalIndexBuilder builder;
 
     setUp(() async {
@@ -31,9 +30,8 @@ environment:
   sdk: ^3.0.0
 ''');
 
-      final projectIndex = ScipIndex.empty(projectRoot: tempDir.path);
-      registry = IndexRegistry(
-        projectIndex: projectIndex,
+      registry = PackageRegistry(
+        rootPath: tempDir.path,
         globalCachePath: cacheDir.path,
       );
       builder = ExternalIndexBuilder(registry: registry);

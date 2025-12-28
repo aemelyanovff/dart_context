@@ -8,7 +8,7 @@
 // ignore_for_file: implementation_imports
 import 'dart:io';
 
-import 'package:dart_context/src/index/index_registry.dart';
+import 'package:dart_context/src/index/package_registry.dart';
 import 'package:dart_context/src/index/scip_index.dart';
 import 'package:dart_context/src/query/query_executor.dart';
 import 'package:dart_context/src/query/query_result.dart';

@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:dart_context/src/index/external_index_builder.dart';
-import 'package:dart_context/src/index/index_registry.dart';
+import 'package:dart_context/src/index/package_registry.dart';
 import 'package:dart_context/src/index/scip_index.dart';
 import 'package:test/test.dart';
 

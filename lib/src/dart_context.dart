@@ -1,15 +1,12 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'index/incremental_indexer.dart';
-import 'index/index_registry.dart';
-import 'index/scip_index.dart';
+import 'index/package_registry.dart';
+import 'package_discovery.dart';
 import 'query/query_executor.dart';
 import 'query/query_parser.dart';
 import 'query/query_result.dart';
-import 'workspace/workspace_detector.dart';
-import 'workspace/workspace_registry.dart';
-import 'workspace/workspace_watcher.dart';
+import 'root_watcher.dart';
 
 export 'index/incremental_indexer.dart'
     show
@@ -20,13 +17,16 @@ export 'index/incremental_indexer.dart'
         FileUpdatedUpdate,
         FileRemovedUpdate,
         IndexErrorUpdate;
-export 'workspace/workspace_detector.dart'
-    show WorkspaceInfo, WorkspacePackage, WorkspaceType;
+export 'index/package_registry.dart'
+    show PackageRegistry, LocalPackageIndex, ExternalPackageIndex;
+export 'package_discovery.dart' show LocalPackage, DiscoveryResult;
 
 /// Lightweight semantic code intelligence for Dart.
 ///
 /// Provides incremental indexing and a query DSL for navigating
 /// Dart codebases.
+///
+/// ## Usage
 ///
 /// ```dart
 /// final context = await DartContext.open('/path/to/project');
@@ -43,52 +43,57 @@ export 'workspace/workspace_detector.dart'
 /// // Cleanup
 /// await context.dispose();
 /// ```
+///
+/// ## Works with any folder structure
+///
+/// The unified architecture works for:
+/// - Single packages
+/// - Melos mono repos
+/// - Dart pub workspaces
+/// - Any folder with multiple packages
 class DartContext {
   DartContext._({
-    required IncrementalScipIndexer indexer,
+    required this.rootPath,
+    required PackageRegistry registry,
     required QueryExecutor executor,
-    IndexRegistry? registry,
-    WorkspaceInfo? workspace,
-    WorkspaceRegistry? workspaceRegistry,
-    WorkspaceWatcher? workspaceWatcher,
-  })  : _indexer = indexer,
+    RootWatcher? watcher,
+    DiscoveryResult? discovery,
+  })  : _registry = registry,
         _executor = executor,
-        _registry = registry,
-        _workspace = workspace,
-        _workspaceRegistry = workspaceRegistry,
-        _workspaceWatcher = workspaceWatcher;
+        _watcher = watcher,
+        _discovery = discovery;
 
-  final IncrementalScipIndexer _indexer;
+  /// The root path for this context.
+  final String rootPath;
+
+  final PackageRegistry _registry;
   QueryExecutor _executor;
-  IndexRegistry? _registry;
-  final WorkspaceInfo? _workspace;
-  final WorkspaceRegistry? _workspaceRegistry;
-  final WorkspaceWatcher? _workspaceWatcher;
+  final RootWatcher? _watcher;
+  final DiscoveryResult? _discovery;
 
-  /// Open a Dart project and create a context.
+  /// Open a Dart project or workspace.
   ///
   /// This will:
-  /// 1. Detect if this is part of a mono repo workspace
-  /// 2. Parse project configuration
+  /// 1. Recursively discover all packages in the path
+  /// 2. Create indexers for each package
   /// 3. Load from cache (if valid and [useCache] is true)
-  /// 4. Create analyzer context
-  /// 5. Perform incremental indexing of changed files
-  /// 6. Start file watching (if [watch] is true)
-  /// 7. Load pre-indexed dependencies (if [loadDependencies] is true)
-  /// 8. Load local workspace packages for cross-package queries
+  /// 4. Start file watching (if [watch] is true)
+  /// 5. Load pre-indexed dependencies (if [loadDependencies] is true)
   ///
-  /// Set [useCache] to false to force a full re-index.
-  ///
-  /// Set [loadDependencies] to true to enable cross-package queries
-  /// (requires pre-indexed dependencies via `index-sdk` or `index-deps`).
+  /// Works for any folder structure:
+  /// - Single packages
+  /// - Melos mono repos
+  /// - Dart pub workspaces
+  /// - Any folder with multiple packages
   ///
   /// Example:
   /// ```dart
-  /// final context = await DartContext.open('/path/to/project');
+  /// // Open a single package
+  /// final context = await DartContext.open('/path/to/package');
   ///
-  /// // With cross-package queries enabled:
+  /// // Open a mono repo with cross-package queries
   /// final context = await DartContext.open(
-  ///   '/path/to/project',
+  ///   '/path/to/monorepo',
   ///   loadDependencies: true,
   /// );
   /// ```
@@ -97,154 +102,75 @@ class DartContext {
     bool watch = true,
     bool useCache = true,
     bool loadDependencies = false,
+    void Function(String message)? onProgress,
   }) async {
-    // Detect workspace (melos, pub workspace, or single package)
-    final workspace = await detectWorkspace(projectPath);
+    // 1. Discover all packages
+    onProgress?.call('Discovering packages...');
+    final discovery = await discoverPackages(projectPath);
 
-    // For mono repos, use workspace-aware opening
-    if (workspace != null && workspace.type != WorkspaceType.single) {
-      return _openWorkspace(
-        projectPath,
-        workspace,
-        watch: watch,
-        useCache: useCache,
-        loadDependencies: loadDependencies,
-      );
-    }
+    // 2. Create registry
+    final registry = PackageRegistry(rootPath: discovery.rootPath);
 
-    // Single package mode
-    return _openSingle(
-      projectPath,
-      watch: watch,
+    // 3. Initialize local packages
+    await registry.initializeLocalPackages(
+      discovery.packages,
       useCache: useCache,
-      loadDependencies: loadDependencies,
-    );
-  }
-
-  /// Open a single package (not in a workspace).
-  static Future<DartContext> _openSingle(
-    String projectPath, {
-    bool watch = true,
-    bool useCache = true,
-    bool loadDependencies = false,
-  }) async {
-    final indexer = await IncrementalScipIndexer.open(
-      projectPath,
-      watch: watch,
-      useCache: useCache,
+      onProgress: onProgress,
     );
 
-    // Create registry for cross-package queries if requested
-    IndexRegistry? registry;
+    // 4. Load external dependencies if requested
     if (loadDependencies) {
-      registry = IndexRegistry(projectIndex: indexer.index);
-      await registry.loadDependenciesFrom(projectPath);
+      onProgress?.call('Loading dependencies...');
+      await registry.loadAllDependencies();
     }
 
-    final executor = QueryExecutor(
-      indexer.index,
-      signatureProvider: indexer.getSignature,
-      registry: registry,
-    );
-
-    return DartContext._(
-      indexer: indexer,
-      executor: executor,
-      registry: registry,
-    );
-  }
-
-  /// Open a project that's part of a workspace.
-  static Future<DartContext> _openWorkspace(
-    String projectPath,
-    WorkspaceInfo workspace, {
-    bool watch = true,
-    bool useCache = true,
-    bool loadDependencies = false,
-  }) async {
-    // Create the workspace registry
-    final workspaceRegistry = WorkspaceRegistry(workspace);
-    await workspaceRegistry.initialize(useCache: useCache);
-
-    // Find the target package in the workspace
-    var targetPkg = workspace.findPackageForPath(projectPath);
-
-    // If opening from workspace root (not a specific package), pick a primary package
-    // Prefer Flutter apps (have lib/main.dart), otherwise use the first package
-    if (targetPkg == null && workspace.packages.isNotEmpty) {
-      // Try to find a Flutter app (has lib/main.dart)
-      for (final pkg in workspace.packages) {
-        final mainFile = File('${pkg.absolutePath}/lib/main.dart');
-        if (mainFile.existsSync()) {
-          targetPkg = pkg;
-          break;
-        }
-      }
-      // Fall back to first package
-      targetPkg ??= workspace.packages.first;
-    }
-
-    final targetPath = targetPkg?.absolutePath ?? projectPath;
-
-    // Get the indexer for the target package
-    final indexer = workspaceRegistry.indexers[targetPkg?.name] ??
-        await IncrementalScipIndexer.open(
-          targetPath,
-          watch: false, // Workspace watcher handles this
-          useCache: useCache,
-        );
-
-    // Create registry with workspace root for local packages
-    final registry = IndexRegistry(
-      projectIndex: indexer.index,
-      workspaceRoot: workspace.rootPath,
-    );
-
-    // Load ALL local package indexes (including the target package for cross-refs)
-    final localIndexes = await workspaceRegistry.loadLocalPackages();
-    for (final entry in localIndexes.entries) {
-      registry.addLocalIndex(entry.key, entry.value);
-    }
-
-    // Load external dependencies if requested
-    if (loadDependencies) {
-      await registry.loadDependenciesFrom(targetPath);
-    }
-
-    // Start workspace watcher if watching is enabled
-    WorkspaceWatcher? workspaceWatcher;
+    // 5. Start unified watcher
+    RootWatcher? watcher;
     if (watch) {
-      workspaceWatcher = WorkspaceWatcher(
-        workspace: workspace,
-        registry: workspaceRegistry,
+      watcher = RootWatcher(
+        rootPath: discovery.rootPath,
+        registry: registry,
       );
-      await workspaceWatcher.start();
+      await watcher.start();
     }
 
+    // 6. Create executor
     final executor = QueryExecutor(
-      indexer.index,
-      signatureProvider: indexer.getSignature,
+      registry.projectIndex,
       registry: registry,
     );
 
+    onProgress?.call('Ready');
+
     return DartContext._(
-      indexer: indexer,
-      executor: executor,
+      rootPath: discovery.rootPath,
       registry: registry,
-      workspace: workspace,
-      workspaceRegistry: workspaceRegistry,
-      workspaceWatcher: workspaceWatcher,
+      executor: executor,
+      watcher: watcher,
+      discovery: discovery,
     );
   }
 
-  /// The project root path.
-  String get projectRoot => _indexer.projectRoot;
+  /// The package registry for this context.
+  PackageRegistry get registry => _registry;
 
-  /// The underlying index.
-  ScipIndex get index => _indexer.index;
+  /// All discovered packages.
+  List<LocalPackage> get packages => _discovery?.packages ?? [];
 
-  /// Stream of index updates (file changes, errors, etc.)
-  Stream<IndexUpdate> get updates => _indexer.updates;
+  /// Number of local packages.
+  int get packageCount => _registry.localPackages.length;
+
+  /// Stream of index updates from all local packages.
+  ///
+  /// Combines update streams from all package indexers.
+  Stream<IndexUpdate> get updates {
+    final streams = _registry.localPackages.values
+        .map((pkg) => pkg.indexer.updates)
+        .toList();
+    if (streams.isEmpty) return const Stream.empty();
+    if (streams.length == 1) return streams.first;
+    return streams.reduce((a, b) => a.merge(b));
+  }
 
   /// Execute a query using the DSL.
   ///
@@ -258,6 +184,7 @@ class DartContext {
   /// - `hierarchy <symbol>` - Full hierarchy
   /// - `source <symbol>` - Get source code
   /// - `find <pattern> [kind:<kind>] [in:<path>]` - Search
+  /// - `grep <pattern>` - Search source code
   /// - `files` - List indexed files
   /// - `stats` - Index statistics
   ///
@@ -277,30 +204,28 @@ class DartContext {
 
   /// Manually refresh a specific file.
   ///
-  /// Useful when file watching is disabled.
-  Future<bool> refreshFile(String filePath) {
-    return _indexer.refreshFile(filePath);
+  /// Routes the file to the correct package indexer.
+  Future<bool> refreshFile(String filePath) async {
+    final pkg = _registry.findPackageForPath(filePath);
+    if (pkg == null) return false;
+    return pkg.indexer.refreshFile(filePath);
   }
 
-  /// Manually refresh all files.
-  Future<void> refreshAll() {
-    return _indexer.refreshAll();
+  /// Manually refresh all files in all packages.
+  Future<void> refreshAll() async {
+    for (final pkg in _registry.localPackages.values) {
+      await pkg.indexer.refreshAll();
+    }
   }
 
-  /// Get index statistics.
-  Map<String, int> get stats => _indexer.index.stats;
+  /// Get combined index statistics.
+  Map<String, dynamic> get stats => _registry.stats;
 
-  /// Whether cross-package queries are enabled.
-  bool get hasDependencies => _registry != null;
-
-  /// The index registry for cross-package queries (if enabled).
-  IndexRegistry? get registry => _registry;
-
-  /// The workspace info (if this project is part of a mono repo).
-  WorkspaceInfo? get workspace => _workspace;
-
-  /// Whether this context is part of a workspace.
-  bool get isWorkspace => _workspace != null;
+  /// Whether external dependencies are loaded.
+  bool get hasDependencies =>
+      _registry.sdkIndex != null ||
+      _registry.hostedPackages.isNotEmpty ||
+      _registry.flutterPackages.isNotEmpty;
 
   /// Load pre-indexed dependencies for cross-package queries.
   ///
@@ -309,41 +234,32 @@ class DartContext {
   ///
   /// ```dart
   /// final context = await DartContext.open('/path/to/project');
-  /// await context.loadDependencies(); // Enable cross-package queries later
+  /// await context.loadDependencies(); // Enable later
   /// ```
-  ///
-  /// Returns the number of packages loaded.
-  Future<int> loadDependencies() async {
-    if (_registry != null) {
-      // Already have a registry, just reload
-      return _registry!.loadDependenciesFrom(projectRoot);
-    }
+  Future<DependencyLoadResult> loadDependencies() async {
+    return _registry.loadAllDependencies();
+  }
 
-    // Create new registry
-    _registry = IndexRegistry(
-      projectIndex: _indexer.index,
-      workspaceRoot: _workspace?.rootPath,
-    );
-    final count = await _registry!.loadDependenciesFrom(projectRoot);
-
-    // Recreate executor with the registry for cross-package queries
-    _executor = QueryExecutor(
-      _indexer.index,
-      signatureProvider: _indexer.getSignature,
-      registry: _registry,
-    );
-
-    return count;
+  /// Find which local package owns a file path.
+  LocalPackageIndex? findPackageForPath(String filePath) {
+    return _registry.findPackageForPath(filePath);
   }
 
   /// Dispose of resources.
   ///
-  /// Stops file watching and cleans up.
+  /// Stops file watching and cleans up all indexers.
   Future<void> dispose() async {
-    await _workspaceWatcher?.stop();
-    _workspaceRegistry?.dispose();
-    _registry?.unloadAll();
-    await _indexer.dispose();
+    await _watcher?.stop();
+    _registry.dispose();
   }
 }
 
+/// Extension to merge streams.
+extension _StreamMerge<T> on Stream<T> {
+  Stream<T> merge(Stream<T> other) {
+    final controller = StreamController<T>.broadcast();
+    listen(controller.add, onError: controller.addError);
+    other.listen(controller.add, onError: controller.addError);
+    return controller.stream;
+  }
+}

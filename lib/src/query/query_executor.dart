@@ -3,7 +3,7 @@ import 'dart:io';
 // ignore: implementation_imports
 import 'package:scip_dart/src/gen/scip.pb.dart' as scip;
 
-import '../index/index_registry.dart';
+import '../index/package_registry.dart';
 import '../index/scip_index.dart';
 import 'query_parser.dart';
 import 'query_result.dart';

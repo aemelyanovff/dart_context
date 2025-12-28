@@ -17,6 +17,14 @@
 /// final classes = await context.query('find Auth* kind:class');
 /// ```
 ///
+/// ## Works with any folder structure
+///
+/// The unified architecture works for:
+/// - Single packages
+/// - Melos mono repos
+/// - Dart pub workspaces
+/// - Any folder with multiple packages
+///
 /// ## Integration with External Analyzers
 ///
 /// When integrating with an existing analyzer (e.g., HologramAnalyzer):
@@ -57,29 +65,45 @@ export 'src/index/external_index_builder.dart'
         FlutterIndexResult;
 export 'src/index/incremental_indexer.dart'
     show IncrementalScipIndexer, IndexUpdate;
-export 'src/index/index_registry.dart'
-    show IndexRegistry, IndexScope, DependencyLoadResult;
+export 'src/index/package_registry.dart'
+    show
+        PackageRegistry,
+        LocalPackageIndex,
+        ExternalPackageIndex,
+        ExternalPackageType,
+        DependencyLoadResult,
+        // Backward compatibility
+        IndexRegistry,
+        IndexScope;
 export 'src/index/scip_index.dart'
     show ScipIndex, SymbolInfo, OccurrenceInfo, GrepMatchData;
+export 'src/package_discovery.dart'
+    show
+        LocalPackage,
+        DiscoveryResult,
+        discoverPackages,
+        discoverPackagesSync,
+        shouldIgnorePath,
+        ignoredSegments;
 export 'src/query/query_executor.dart' show QueryExecutor;
 export 'src/query/query_parser.dart'
     show ScipQuery, ParsedPattern, PatternType;
 export 'src/query/query_result.dart';
+export 'src/root_watcher.dart' show RootWatcher;
 export 'src/utils/package_config.dart'
     show
         DependencySource,
         ResolvedPackage,
         parsePackageConfig,
         parsePackageConfigSync;
-export 'src/workspace/workspace_detector.dart'
-    show
-        WorkspaceInfo,
-        WorkspacePackage,
-        WorkspaceType,
-        MelosConfig,
-        detectWorkspace,
-        detectWorkspaceSync;
-export 'src/workspace/workspace_registry.dart' show WorkspaceRegistry;
-export 'src/workspace/workspace_watcher.dart'
-    show WorkspaceWatcher, WorkspaceWatchConfig;
+export 'src/version.dart' show dartContextVersion, manifestVersion;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Deprecated exports (for backward compatibility)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// These are deprecated and will be removed in a future version.
+// Use the new unified architecture instead:
+//   - discoverPackages() instead of detectWorkspace()
+//   - PackageRegistry instead of WorkspaceRegistry
+//   - RootWatcher instead of WorkspaceWatcher
