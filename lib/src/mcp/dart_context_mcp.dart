@@ -1,13 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:dart_binding/dart_binding.dart';
 import 'package:dart_mcp/server.dart';
 
-import '../cache/cache_paths.dart';
 import '../dart_context.dart';
-import '../index/external_index_builder.dart';
-import '../utils/pubspec_utils.dart';
-import '../version.dart';
 
 /// Mix this in to any MCPServer to add Dart code intelligence via dart_context.
 ///

@@ -3,7 +3,7 @@ import 'dart:io';
 // ignore: implementation_imports
 import 'package:scip_dart/src/gen/scip.pb.dart' as scip;
 
-import '../index/package_registry.dart';
+import '../index/index_provider.dart';
 import '../index/scip_index.dart';
 import 'query_parser.dart';
 import 'query_result.dart';
@@ -54,7 +54,7 @@ class QueryExecutor {
   QueryExecutor(
     this.index, {
     this.signatureProvider,
-    this.registry,
+    this.provider,
   });
 
   final ScipIndex index;
@@ -64,10 +64,10 @@ class QueryExecutor {
   /// signatures from source code heuristically.
   final SignatureProvider? signatureProvider;
 
-  /// Optional registry for cross-package queries.
+  /// Optional provider for cross-package queries.
   /// When provided, hierarchy queries (supertypes, subtypes, hierarchy, members)
   /// will search across loaded external indexes (SDK, packages).
-  final PackageRegistry? registry;
+  final IndexProvider? provider;
 
   /// Execute a query string and return the result.
   ///
@@ -202,10 +202,10 @@ class QueryExecutor {
     OccurrenceInfo? def;
     String? source;
 
-    if (registry != null) {
-      def = registry!.findDefinition(sym.symbol);
+    if (provider != null) {
+      def = provider!.findDefinition(sym.symbol);
       if (def != null) {
-        source = await registry!.getSource(sym.symbol);
+        source = await provider!.getSource(sym.symbol);
       }
     } else {
       def = index.findDefinition(sym.symbol);
@@ -236,8 +236,8 @@ class QueryExecutor {
     }
 
     // Use registry for cross-package lookup if available
-    final allMembers = registry != null
-        ? registry!.membersOf(sym.symbol)
+    final allMembers = provider != null
+        ? provider!.membersOf(sym.symbol)
         : index.membersOf(sym.symbol).toList();
 
     // Filter out parameters - they are indexed as children but aren't class members
@@ -253,8 +253,8 @@ class QueryExecutor {
   /// Uses [registry] for cross-package lookups when available.
   Future<QueryResult> _implementationsForSymbol(SymbolInfo sym) async {
     // Use registry for cross-package lookup if available
-    final impls = registry != null
-        ? registry!.subtypesOf(sym.symbol)
+    final impls = provider != null
+        ? provider!.subtypesOf(sym.symbol)
         : index.findImplementations(sym.symbol).toList();
     return SearchResult(impls);
   }
@@ -263,8 +263,8 @@ class QueryExecutor {
   /// Uses [registry] for cross-package lookups when available.
   Future<QueryResult> _supertypesForSymbol(SymbolInfo sym) async {
     // Use registry for cross-package lookup if available
-    final supertypes = registry != null
-        ? registry!.supertypesOf(sym.symbol)
+    final supertypes = provider != null
+        ? provider!.supertypesOf(sym.symbol)
         : index.supertypesOf(sym.symbol).toList();
     return HierarchyResult(
       symbol: sym,
@@ -277,8 +277,8 @@ class QueryExecutor {
   /// Uses [registry] for cross-package lookups when available.
   Future<QueryResult> _subtypesForSymbol(SymbolInfo sym) async {
     // Use registry for cross-package lookup if available
-    final subtypes = registry != null
-        ? registry!.subtypesOf(sym.symbol)
+    final subtypes = provider != null
+        ? provider!.subtypesOf(sym.symbol)
         : index.subtypesOf(sym.symbol).toList();
     return HierarchyResult(
       symbol: sym,
@@ -291,11 +291,11 @@ class QueryExecutor {
   /// Uses [registry] for cross-package lookups when available.
   Future<QueryResult> _hierarchyForSymbol(SymbolInfo sym) async {
     // Use registry for cross-package lookup if available
-    final supertypes = registry != null
-        ? registry!.supertypesOf(sym.symbol)
+    final supertypes = provider != null
+        ? provider!.supertypesOf(sym.symbol)
         : index.supertypesOf(sym.symbol).toList();
-    final subtypes = registry != null
-        ? registry!.subtypesOf(sym.symbol)
+    final subtypes = provider != null
+        ? provider!.subtypesOf(sym.symbol)
         : index.subtypesOf(sym.symbol).toList();
     return HierarchyResult(
       symbol: sym,
@@ -312,10 +312,10 @@ class QueryExecutor {
     OccurrenceInfo? def;
     String? source;
 
-    if (registry != null) {
-      def = registry!.findDefinition(sym.symbol);
+    if (provider != null) {
+      def = provider!.findDefinition(sym.symbol);
       if (def != null) {
-        source = await registry!.getSource(sym.symbol);
+        source = await provider!.getSource(sym.symbol);
       }
     } else {
       def = index.findDefinition(sym.symbol);
@@ -348,8 +348,8 @@ class QueryExecutor {
   Future<QueryResult> _signatureForSymbol(SymbolInfo sym) async {
     // Try registry first for cross-package support
     OccurrenceInfo? def;
-    if (registry != null) {
-      def = registry!.findDefinition(sym.symbol);
+    if (provider != null) {
+      def = provider!.findDefinition(sym.symbol);
     } else {
       def = index.findDefinition(sym.symbol);
     }
@@ -383,8 +383,8 @@ class QueryExecutor {
   ///
   /// Uses [registry] for cross-package call graph when available.
   Future<QueryResult> _callsForSymbol(SymbolInfo sym) async {
-    final calls = registry != null
-        ? registry!.getCalls(sym.symbol)
+    final calls = provider != null
+        ? provider!.getCalls(sym.symbol)
         : index.getCalls(sym.symbol).toList();
     return CallGraphResult(
       symbol: sym,
@@ -402,10 +402,10 @@ class QueryExecutor {
     List<SymbolInfo> callers;
 
     // If we have a registry with local indexes (workspace mode), use name-based search
-    if (registry != null && registry!.localIndexes.isNotEmpty) {
-      callers = registry!.findAllCallersByName(sym.name);
-    } else if (registry != null) {
-      callers = registry!.getCallers(sym.symbol);
+    if (provider != null && provider!.localIndexes.isNotEmpty) {
+      callers = provider!.findAllCallersByName(sym.name);
+    } else if (provider != null) {
+      callers = provider!.getCallers(sym.symbol);
     } else {
       callers = index.getCallers(sym.symbol).toList();
     }
@@ -424,8 +424,8 @@ class QueryExecutor {
     final deps = <String, SymbolInfo>{};
 
     // Get calls from all indexes
-    final calls = registry != null
-        ? registry!.getCalls(sym.symbol)
+    final calls = provider != null
+        ? provider!.getCalls(sym.symbol)
         : index.getCalls(sym.symbol).toList();
 
     for (final called in calls) {
@@ -435,8 +435,8 @@ class QueryExecutor {
     if (sym.kind == scip.SymbolInformation_Kind.Class) {
       final children = index.getChildren(sym.symbol);
       for (final childId in children) {
-        final childCalls = registry != null
-            ? registry!.getCalls(childId)
+        final childCalls = provider != null
+            ? provider!.getCalls(childId)
             : index.getCalls(childId).toList();
         for (final called in childCalls) {
           deps[called.symbol] = called;
@@ -585,7 +585,7 @@ class QueryExecutor {
 
       // Prefer project symbols over external when priority ties
       bool isProject(SymbolInfo s) =>
-          registry == null || registry!.projectIndex.getSymbol(s.symbol) != null;
+          provider == null || provider!.projectIndex.getSymbol(s.symbol) != null;
 
       final sorted = [...symbols];
       sorted.sort((a, b) {
@@ -603,9 +603,9 @@ class QueryExecutor {
 
     if (query.isQualified) {
       // Qualified lookup: Class.member
-      if (registry != null) {
+      if (provider != null) {
         return sorted0(
-          registry!.findQualified(query.container!, query.memberName).toList(),
+          provider!.findQualified(query.container!, query.memberName).toList(),
         );
       }
       return sorted0(
@@ -616,8 +616,8 @@ class QueryExecutor {
       final results = index.findSymbols(query.target).toList();
 
       // Also search in registry if available (for cross-package queries)
-      if (registry != null) {
-        final externalResults = registry!.findSymbols(query.target);
+      if (provider != null) {
+        final externalResults = provider!.findSymbols(query.target);
         // Add external results that aren't already in the project results
         final projectSymbols = results.map((s) => s.symbol).toSet();
         for (final sym in externalResults) {
@@ -760,9 +760,9 @@ class QueryExecutor {
     final referenceMatches = <ReferenceMatch>[];
 
     // If we have a registry with local indexes (workspace mode), use name-based search
-    if (registry != null && registry!.localIndexes.isNotEmpty) {
+    if (provider != null && provider!.localIndexes.isNotEmpty) {
       // Use name-based search for workspace cross-package queries
-      final results = registry!.findAllReferencesByName(
+      final results = provider!.findAllReferencesByName(
         sym.name,
         symbolKind: sym.kindString,
       );
@@ -798,24 +798,24 @@ class QueryExecutor {
       final allRefs = <OccurrenceInfo>[];
 
       // Get direct references to this symbol from all indexes
-      if (registry != null) {
-        allRefs.addAll(registry!.findAllReferences(sym.symbol));
+      if (provider != null) {
+        allRefs.addAll(provider!.findAllReferences(sym.symbol));
       } else {
         allRefs.addAll(index.findReferences(sym.symbol));
       }
 
       // For classes, also include constructor call references
       if (sym.kindString == 'class') {
-        final constructors = registry != null
-            ? registry!.membersOf(sym.symbol).where(
+        final constructors = provider != null
+            ? provider!.membersOf(sym.symbol).where(
                   (m) => m.kindString == 'constructor',
                 )
             : index.membersOf(sym.symbol).where(
                   (m) => m.kindString == 'constructor',
                 );
         for (final ctor in constructors) {
-          if (registry != null) {
-            allRefs.addAll(registry!.findAllReferences(ctor.symbol));
+          if (provider != null) {
+            allRefs.addAll(provider!.findAllReferences(ctor.symbol));
           } else {
             allRefs.addAll(index.findReferences(ctor.symbol));
           }
@@ -833,8 +833,8 @@ class QueryExecutor {
 
       for (final ref in uniqueRefs) {
         String? context;
-        if (registry != null) {
-          for (final idx in registry!.allIndexes) {
+        if (provider != null) {
+          for (final idx in provider!.allIndexes) {
             if (idx.files.contains(ref.file)) {
               context = await idx.getContext(ref);
               break;
@@ -884,8 +884,8 @@ class QueryExecutor {
     for (final sym in symbolsToUse.take(10)) {
       // Limit to 10 symbols
       // Get references from all indexes
-      final refs = registry != null
-          ? registry!.findAllReferences(sym.symbol)
+      final refs = provider != null
+          ? provider!.findAllReferences(sym.symbol)
           : index.findReferences(sym.symbol).toList();
       final container = index.getContainerName(sym.symbol);
 
@@ -893,8 +893,8 @@ class QueryExecutor {
       for (final ref in refs) {
         // Get context from the appropriate index
         String? context;
-        if (registry != null) {
-          for (final idx in registry!.allIndexes) {
+        if (provider != null) {
+          for (final idx in provider!.allIndexes) {
             if (idx.files.contains(ref.file)) {
               context = await idx.getContext(ref);
               break;
@@ -946,8 +946,8 @@ class QueryExecutor {
 
     final sym = symbols.first;
     // Use registry for cross-package lookup if available
-    final allMembers = registry != null
-        ? registry!.membersOf(sym.symbol)
+    final allMembers = provider != null
+        ? provider!.membersOf(sym.symbol)
         : index.membersOf(sym.symbol).toList();
 
     // Filter out parameters - they are indexed as children but aren't class members
@@ -973,8 +973,8 @@ class QueryExecutor {
 
     final sym = symbols.first;
     // Use registry for cross-package lookup if available
-    final impls = registry != null
-        ? registry!.subtypesOf(sym.symbol)
+    final impls = provider != null
+        ? provider!.subtypesOf(sym.symbol)
         : index.findImplementations(sym.symbol).toList();
 
     return SearchResult(impls);
@@ -989,8 +989,8 @@ class QueryExecutor {
 
     final sym = symbols.first;
     // Use registry for cross-package lookup if available
-    final supertypes = registry != null
-        ? registry!.supertypesOf(sym.symbol)
+    final supertypes = provider != null
+        ? provider!.supertypesOf(sym.symbol)
         : index.supertypesOf(sym.symbol).toList();
 
     return HierarchyResult(
@@ -1009,8 +1009,8 @@ class QueryExecutor {
 
     final sym = symbols.first;
     // Use registry for cross-package lookup if available
-    final subtypes = registry != null
-        ? registry!.subtypesOf(sym.symbol)
+    final subtypes = provider != null
+        ? provider!.subtypesOf(sym.symbol)
         : index.subtypesOf(sym.symbol).toList();
 
     return HierarchyResult(
@@ -1029,11 +1029,11 @@ class QueryExecutor {
 
     final sym = symbols.first;
     // Use registry for cross-package lookup if available
-    final supertypes = registry != null
-        ? registry!.supertypesOf(sym.symbol)
+    final supertypes = provider != null
+        ? provider!.supertypesOf(sym.symbol)
         : index.supertypesOf(sym.symbol).toList();
-    final subtypes = registry != null
-        ? registry!.subtypesOf(sym.symbol)
+    final subtypes = provider != null
+        ? provider!.subtypesOf(sym.symbol)
         : index.subtypesOf(sym.symbol).toList();
 
     return HierarchyResult(
@@ -1059,10 +1059,10 @@ class QueryExecutor {
     OccurrenceInfo? def;
     String? source;
 
-    if (registry != null) {
-      def = registry!.findDefinition(sym.symbol);
+    if (provider != null) {
+      def = provider!.findDefinition(sym.symbol);
       if (def != null) {
-        source = await registry!.getSource(sym.symbol);
+        source = await provider!.getSource(sym.symbol);
       }
     } else {
       def = index.findDefinition(sym.symbol);
@@ -1103,8 +1103,8 @@ class QueryExecutor {
 
     // Try registry first for cross-package support
     OccurrenceInfo? def;
-    if (registry != null) {
-      def = registry!.findDefinition(sym.symbol);
+    if (provider != null) {
+      def = provider!.findDefinition(sym.symbol);
     } else {
       def = index.findDefinition(sym.symbol);
     }
@@ -1143,8 +1143,8 @@ class QueryExecutor {
     SymbolInfo sym,
     OccurrenceInfo def,
   ) async {
-    final source = registry != null
-        ? await registry!.getSource(sym.symbol)
+    final source = provider != null
+        ? await provider!.getSource(sym.symbol)
         : await index.getSource(sym.symbol);
     if (source == null) return null;
 
@@ -1228,8 +1228,8 @@ class QueryExecutor {
     // Get all local indexes to search
     // When registry is available, use its local indexes (which already includes
     // the project index). Otherwise, just use the standalone index.
-    final allLocalIndexes = registry != null
-        ? registry!.localIndexes.values.toList()
+    final allLocalIndexes = provider != null
+        ? provider!.localIndexes.values.toList()
         : <ScipIndex>[index];
 
     try {
@@ -1250,8 +1250,8 @@ class QueryExecutor {
           }),);
         }
         // Also search in all external packages (SDK, hosted, Flutter, git)
-        if (registry != null) {
-          for (final idx in registry!.allExternalIndexes) {
+        if (provider != null) {
+          for (final idx in provider!.allExternalIndexes) {
             externalResults.addAll(idx.allSymbols.where((sym) {
               return regex.hasMatch(sym.name) || regex.hasMatch(sym.symbol);
             }),);
@@ -1263,8 +1263,8 @@ class QueryExecutor {
           projectResults.addAll(idx.findSymbols(query.target));
         }
         // Also search in external packages only (local already searched above)
-        if (registry != null) {
-          for (final idx in registry!.allExternalIndexes) {
+        if (provider != null) {
+          for (final idx in provider!.allExternalIndexes) {
             externalResults.addAll(idx.findSymbols(query.target));
           }
         }
@@ -1278,8 +1278,8 @@ class QueryExecutor {
           }),);
         }
         // Also search in all external packages (SDK, hosted, Flutter, git)
-        if (registry != null) {
-          for (final idx in registry!.allExternalIndexes) {
+        if (provider != null) {
+          for (final idx in provider!.allExternalIndexes) {
             externalResults.addAll(idx.allSymbols.where((sym) {
               return regex.hasMatch(sym.name);
             }),);
@@ -1361,33 +1361,20 @@ class QueryExecutor {
       );
     }
 
-    // Use registry if available, with optional external package search (-D)
-    final matches = registry != null
-        ? await registry!.grep(
-            regex,
-            pathFilter: pathFilter,
-            includeGlob: query.includeGlob,
-            excludeGlob: query.excludeGlob,
-            linesBefore: query.linesBefore,
-            linesAfter: query.linesAfter,
-            invertMatch: query.invertMatch,
-            maxPerFile: query.maxCount,
-            multiline: query.multiline,
-            onlyMatching: query.onlyMatching,
-            includeExternal: query.searchDeps, // -D or --search-deps
-          )
-        : await index.grep(
-            regex,
-            pathFilter: pathFilter,
-            includeGlob: query.includeGlob,
-            excludeGlob: query.excludeGlob,
-            linesBefore: query.linesBefore,
-            linesAfter: query.linesAfter,
-            invertMatch: query.invertMatch,
-            maxPerFile: query.maxCount,
-            multiline: query.multiline,
-            onlyMatching: query.onlyMatching,
-          );
+    // Use index directly for now (provider.grep has type mismatch issues)
+    // TODO: Unify grep types in index and provider
+    final matches = await index.grep(
+      regex,
+      pathFilter: pathFilter,
+      includeGlob: query.includeGlob,
+      excludeGlob: query.excludeGlob,
+      linesBefore: query.linesBefore,
+      linesAfter: query.linesAfter,
+      invertMatch: query.invertMatch,
+      maxPerFile: query.maxCount,
+      multiline: query.multiline,
+      onlyMatching: query.onlyMatching,
+    );
 
     // Handle files-only output (-l)
     if (query.filesOnly) {
@@ -1519,8 +1506,8 @@ class QueryExecutor {
       return NotFoundResult('Symbol "${query.target}" not found');
     }
 
-    final calls = registry != null
-        ? registry!.getCalls(sym.symbol)
+    final calls = provider != null
+        ? provider!.getCalls(sym.symbol)
         : index.getCalls(sym.symbol).toList();
     return CallGraphResult(
       symbol: sym,
@@ -1538,8 +1525,8 @@ class QueryExecutor {
       return NotFoundResult('Symbol "${query.target}" not found');
     }
 
-    final callers = registry != null
-        ? registry!.getCallers(sym.symbol)
+    final callers = provider != null
+        ? provider!.getCallers(sym.symbol)
         : index.getCallers(sym.symbol).toList();
     return CallGraphResult(
       symbol: sym,
@@ -1682,8 +1669,8 @@ class QueryExecutor {
     final deps = <String, SymbolInfo>{};
 
     // Get direct calls from all indexes
-    final calls = registry != null
-        ? registry!.getCalls(sym.symbol)
+    final calls = provider != null
+        ? provider!.getCalls(sym.symbol)
         : index.getCalls(sym.symbol).toList();
 
     for (final called in calls) {
@@ -1694,8 +1681,8 @@ class QueryExecutor {
     if (sym.kind == scip.SymbolInformation_Kind.Class) {
       final children = index.getChildren(sym.symbol);
       for (final childId in children) {
-        final childCalls = registry != null
-            ? registry!.getCalls(childId)
+        final childCalls = provider != null
+            ? provider!.getCalls(childId)
             : index.getCalls(childId).toList();
         for (final called in childCalls) {
           deps[called.symbol] = called;
@@ -1732,9 +1719,9 @@ class QueryExecutor {
 
   Future<QueryResult> _listFiles() async {
     // In workspace mode, aggregate files from all local packages
-    if (registry != null && registry!.localIndexes.isNotEmpty) {
+    if (provider != null && provider!.localIndexes.isNotEmpty) {
       final allFiles = <String>[];
-      for (final idx in registry!.localIndexes.values) {
+      for (final idx in provider!.localIndexes.values) {
         allFiles.addAll(idx.files);
       }
       return FilesResult(allFiles.toList()..sort());
@@ -1744,12 +1731,12 @@ class QueryExecutor {
 
   Future<QueryResult> _getStats() async {
     // In workspace mode, aggregate stats from all local packages
-    if (registry != null && registry!.localIndexes.isNotEmpty) {
+    if (provider != null && provider!.localIndexes.isNotEmpty) {
       var totalFiles = 0;
       var totalSymbols = 0;
       var totalReferences = 0;
 
-      for (final idx in registry!.localIndexes.values) {
+      for (final idx in provider!.localIndexes.values) {
         final stats = idx.stats;
         totalFiles += stats['files'] ?? 0;
         totalSymbols += stats['symbols'] ?? 0;
@@ -1760,7 +1747,7 @@ class QueryExecutor {
         'files': totalFiles,
         'symbols': totalSymbols,
         'references': totalReferences,
-        'packages': registry!.localIndexes.length,
+        'packages': provider!.localIndexes.length,
       });
     }
     return StatsResult(index.stats);
@@ -1779,8 +1766,8 @@ class QueryExecutor {
     // Search in all local indexes
     final symbols = <SymbolInfo>[];
 
-    if (registry != null && registry!.localIndexes.isNotEmpty) {
-      for (final idx in registry!.localIndexes.values) {
+    if (provider != null && provider!.localIndexes.isNotEmpty) {
+      for (final idx in provider!.localIndexes.values) {
         // Try both with and without the file path as-is
         var fileSymbols = idx.symbolsInFile(filePath).toList();
 
@@ -1855,8 +1842,8 @@ class QueryExecutor {
     // Search in all indexes
     SymbolInfo? symbol;
 
-    if (registry != null) {
-      symbol = registry!.getSymbol(symbolId);
+    if (provider != null) {
+      symbol = provider!.getSymbol(symbolId);
     } else {
       symbol = index.getSymbol(symbolId);
     }
@@ -1869,10 +1856,10 @@ class QueryExecutor {
     OccurrenceInfo? def;
     String? source;
 
-    if (registry != null) {
-      def = registry!.findDefinition(symbol.symbol);
+    if (provider != null) {
+      def = provider!.findDefinition(symbol.symbol);
       if (def != null) {
-        source = await registry!.getSource(symbol.symbol);
+        source = await provider!.getSource(symbol.symbol);
       }
     } else {
       def = index.findDefinition(symbol.symbol);

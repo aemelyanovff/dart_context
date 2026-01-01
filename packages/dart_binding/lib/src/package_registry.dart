@@ -1,14 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:scip_server/scip_server.dart';
 import 'package:yaml/yaml.dart';
 
-import '../cache/cache_paths.dart';
-import '../package_discovery.dart';
-import '../utils/package_config.dart';
-import '../version.dart';
+import 'cache/cache_paths.dart';
 import 'incremental_indexer.dart';
-import 'scip_index.dart';
+import 'package_discovery.dart';
+import 'utils/package_config.dart';
+import 'version.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Package Index Types

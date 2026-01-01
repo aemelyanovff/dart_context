@@ -4,10 +4,6 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:dart_context/dart_context.dart';
-import 'package:dart_context/src/cache/cache_paths.dart';
-import 'package:dart_context/src/index/external_index_builder.dart';
-import 'package:dart_context/src/index/package_registry.dart';
-import 'package:dart_context/src/package_discovery.dart';
 
 void main(List<String> arguments) async {
   // Check for subcommands first
@@ -99,7 +95,7 @@ void main(List<String> arguments) async {
   final pubspecFile = File('$projectPath/pubspec.yaml');
   if (!await pubspecFile.exists()) {
     // Check if there are any packages in the directory
-    final discovery = await discoverPackages(projectPath);
+    final discovery = await PackageDiscovery().discoverPackages(projectPath);
     if (discovery.packages.isEmpty) {
       stderr.writeln('Error: No Dart packages found in $projectPath');
       stderr.writeln('Make sure you are in a Dart project directory.');
@@ -712,7 +708,7 @@ Future<void> _listPackages(List<String> args) async {
   stderr.writeln('Discovering packages in $path...');
 
   final stopwatch = Stopwatch()..start();
-  final discovery = await discoverPackages(path);
+  final discovery = await PackageDiscovery().discoverPackages(path);
   stopwatch.stop();
 
   stdout.writeln('');

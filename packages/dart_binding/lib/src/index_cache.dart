@@ -4,10 +4,9 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 import 'package:protobuf/protobuf.dart' show CodedBufferReader;
+import 'package:scip_server/scip_server.dart' show ScipIndex;
 // ignore: implementation_imports
 import 'package:scip_dart/src/gen/scip.pb.dart' as scip;
-
-import 'scip_index.dart' show ScipIndex;
 
 /// Manages caching of SCIP indexes to disk.
 ///

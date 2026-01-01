@@ -8,10 +8,7 @@
 // ignore_for_file: implementation_imports
 import 'dart:io';
 
-import 'package:dart_context/src/index/package_registry.dart';
-import 'package:dart_context/src/index/scip_index.dart';
-import 'package:dart_context/src/query/query_executor.dart';
-import 'package:dart_context/src/query/query_result.dart';
+import 'package:dart_context/dart_context.dart';
 import 'package:scip_dart/src/gen/scip.pb.dart' as scip;
 import 'package:test/test.dart';
 
@@ -442,7 +439,7 @@ class ExternalHelper {
 
       executor = QueryExecutor(
         projectIndex,
-        registry: registry,
+        provider: registry,
       );
     });
 

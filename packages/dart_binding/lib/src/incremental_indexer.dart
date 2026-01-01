@@ -15,10 +15,11 @@ import 'package:scip_dart/src/gen/scip.pb.dart' as scip;
 // ignore: implementation_imports
 import 'package:scip_dart/src/scip_visitor.dart';
 
-import '../adapters/analyzer_adapter.dart';
-import '../analyzer/signature_visitor.dart';
+import 'package:scip_server/scip_server.dart';
+
+import 'adapters/analyzer_adapter.dart';
+import 'analyzer/signature_visitor.dart';
 import 'index_cache.dart';
-import 'scip_index.dart';
 
 /// Incremental SCIP indexer with file watching.
 ///

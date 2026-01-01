@@ -143,6 +143,27 @@ bool shouldIgnorePath(String path, String rootPath) {
 // Package Discovery
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Package discovery service for Dart projects.
+///
+/// Provides methods to find all Dart packages in a directory tree.
+///
+/// Example:
+/// ```dart
+/// final discovery = PackageDiscovery();
+/// final result = await discovery.discoverPackages('/path/to/project');
+/// ```
+class PackageDiscovery {
+  /// Discover all packages in a directory.
+  Future<DiscoveryResult> discoverPackages(String rootPath) {
+    return _discoverPackages(rootPath);
+  }
+
+  /// Synchronous version of [discoverPackages].
+  DiscoveryResult discoverPackagesSync(String rootPath) {
+    return _discoverPackagesSync(rootPath);
+  }
+}
+
 /// Recursively discover all Dart packages under a root directory.
 ///
 /// This is the primary entry point for package discovery. It:
@@ -163,7 +184,7 @@ bool shouldIgnorePath(String path, String rootPath) {
 ///   print('Found: ${pkg.name} at ${pkg.relativePath}');
 /// }
 /// ```
-Future<DiscoveryResult> discoverPackages(String rootPath) async {
+Future<DiscoveryResult> _discoverPackages(String rootPath) async {
   final absoluteRoot = Directory(rootPath).absolute.path;
   final packages = <LocalPackage>[];
   final seenPaths = <String>{};
@@ -208,8 +229,8 @@ Future<DiscoveryResult> discoverPackages(String rootPath) async {
   );
 }
 
-/// Synchronous version of [discoverPackages].
-DiscoveryResult discoverPackagesSync(String rootPath) {
+/// Synchronous version of [_discoverPackages].
+DiscoveryResult _discoverPackagesSync(String rootPath) {
   final absoluteRoot = Directory(rootPath).absolute.path;
   final packages = <LocalPackage>[];
   final seenPaths = <String>{};

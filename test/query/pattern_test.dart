@@ -1,4 +1,4 @@
-import 'package:dart_context/src/query/query_parser.dart';
+import 'package:dart_context/dart_context.dart';
 import 'package:test/test.dart';
 
 void main() {

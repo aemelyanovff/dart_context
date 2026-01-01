@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:dart_context/src/index/external_index_builder.dart';
-import 'package:dart_context/src/index/package_registry.dart';
+import 'package:dart_context/dart_context.dart';
+import 'package:dart_context/dart_context.dart';
 import 'package:test/test.dart';
 
 void main() {

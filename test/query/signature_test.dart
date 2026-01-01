@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:dart_context/dart_context.dart';
-import 'package:dart_context/src/query/query_result.dart';
 import 'package:test/test.dart';
 
 void main() {

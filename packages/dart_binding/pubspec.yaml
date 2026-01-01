@@ -1,0 +1,35 @@
+name: dart_binding
+description: Dart language binding for scip_server - incremental indexing and package discovery.
+version: 0.1.0
+
+environment:
+  sdk: ^3.5.0
+
+resolution: workspace
+
+dependencies:
+  # Workspace dependency
+  scip_server:
+  
+  # SCIP protobuf bindings and visitor
+  scip_dart: ^1.6.2
+  protobuf: ^3.1.0
+  
+  # Dart analyzer for incremental analysis
+  analyzer: ^5.13.0
+  
+  # Package resolution
+  package_config: ^2.1.0
+  pubspec_parse: ^1.2.0
+  
+  # Utilities
+  path: ^1.8.0
+  crypto: ^3.0.0
+  collection: ^1.18.0
+  yaml: ^3.0.0
+  glob: ^2.1.0
+
+dev_dependencies:
+  test: ^1.24.0
+  lints: ^3.0.0
+

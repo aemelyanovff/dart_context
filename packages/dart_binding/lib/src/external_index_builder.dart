@@ -6,6 +6,7 @@ import 'package:analyzer/dart/analysis/results.dart';
 import 'package:package_config/package_config.dart';
 import 'package:path/path.dart' as p;
 import 'package:pubspec_parse/pubspec_parse.dart';
+import 'package:scip_server/scip_server.dart';
 // ignore: implementation_imports
 import 'package:scip_dart/scip_dart.dart' as scip_dart;
 // ignore: implementation_imports
@@ -15,9 +16,8 @@ import 'package:scip_dart/src/scip_visitor.dart';
 // ignore: implementation_imports
 import 'package:scip_dart/src/version.dart';
 
-import '../utils/pubspec_utils.dart';
 import 'package_registry.dart';
-import 'scip_index.dart';
+import 'utils/pubspec_utils.dart';
 
 /// Builds SCIP indexes for external dependencies (SDK, packages).
 ///

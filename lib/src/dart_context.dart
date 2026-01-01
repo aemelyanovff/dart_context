@@ -1,26 +1,14 @@
 import 'dart:async';
 
-import 'index/incremental_indexer.dart';
-import 'index/package_registry.dart';
-import 'index/scip_index.dart';
-import 'package_discovery.dart';
-import 'query/query_executor.dart';
-import 'query/query_parser.dart';
-import 'query/query_result.dart';
-import 'root_watcher.dart';
+import 'package:dart_binding/dart_binding.dart'
+    hide IndexUpdate, InitialIndexUpdate, FileUpdatedUpdate, FileRemovedUpdate, IndexErrorUpdate;
+import 'package:scip_server/scip_server.dart'
+    hide IndexUpdate, InitialIndexUpdate, FileUpdatedUpdate, FileRemovedUpdate, IndexErrorUpdate;
 
-export 'index/incremental_indexer.dart'
-    show
-        IndexUpdate,
-        InitialIndexUpdate,
-        CachedIndexUpdate,
-        IncrementalIndexUpdate,
-        FileUpdatedUpdate,
-        FileRemovedUpdate,
-        IndexErrorUpdate;
-export 'index/package_registry.dart'
-    show PackageRegistry, LocalPackageIndex, ExternalPackageIndex;
-export 'package_discovery.dart' show LocalPackage, DiscoveryResult;
+// Use dart_binding's IndexUpdate types (they have more info)
+import 'package:dart_binding/dart_binding.dart' show IndexUpdate;
+
+import 'root_watcher.dart';
 
 /// Lightweight semantic code intelligence for Dart.
 ///
@@ -121,7 +109,8 @@ class DartContext {
   }) async {
     // 1. Discover all packages
     onProgress?.call('Discovering packages...');
-    final discovery = await discoverPackages(projectPath);
+    final packageDiscovery = PackageDiscovery();
+    final discovery = await packageDiscovery.discoverPackages(projectPath);
 
     // 2. Create registry
     final registry = PackageRegistry(rootPath: discovery.rootPath);
@@ -150,9 +139,10 @@ class DartContext {
     }
 
     // 6. Create executor
+    // Note: Registry doesn't implement IndexProvider yet, so we pass null
+    // TODO: Implement IndexProvider wrapper for PackageRegistry
     final executor = QueryExecutor(
       registry.projectIndex,
-      registry: registry,
     );
 
     onProgress?.call('Ready');

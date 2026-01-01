@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'index/package_registry.dart';
-import 'package_discovery.dart';
-import 'utils/package_config.dart';
+import 'package:dart_binding/dart_binding.dart';
 
 /// Unified file watcher for the entire root directory.
 ///
