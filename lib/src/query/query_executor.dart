@@ -550,6 +550,8 @@ class QueryExecutor {
       QueryAction.exports => _findExports(query),
       QueryAction.deps => _findDeps(query),
       QueryAction.signature => _getSignatureResult(query),
+      QueryAction.symbols => _listSymbolsInFile(query),
+      QueryAction.get => _getByScipId(query),
       QueryAction.files => _listFiles(),
       QueryAction.stats => _getStats(),
     };
@@ -1762,5 +1764,141 @@ class QueryExecutor {
       });
     }
     return StatsResult(index.stats);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // FILE-SCOPED AND DIRECT LOOKUP QUERIES
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /// List all symbols defined in a file.
+  ///
+  /// Usage: `symbols lib/auth/service.dart`
+  Future<QueryResult> _listSymbolsInFile(ScipQuery query) async {
+    final filePath = query.target;
+
+    // Search in all local indexes
+    final symbols = <SymbolInfo>[];
+
+    if (registry != null && registry!.localIndexes.isNotEmpty) {
+      for (final idx in registry!.localIndexes.values) {
+        // Try both with and without the file path as-is
+        var fileSymbols = idx.symbolsInFile(filePath).toList();
+
+        // If not found, try matching by suffix
+        if (fileSymbols.isEmpty) {
+          for (final file in idx.files) {
+            if (file.endsWith(filePath) || filePath.endsWith(file)) {
+              fileSymbols = idx.symbolsInFile(file).toList();
+              if (fileSymbols.isNotEmpty) break;
+            }
+          }
+        }
+
+        symbols.addAll(fileSymbols);
+      }
+    } else {
+      var fileSymbols = index.symbolsInFile(filePath).toList();
+
+      // If not found, try matching by suffix
+      if (fileSymbols.isEmpty) {
+        for (final file in index.files) {
+          if (file.endsWith(filePath) || filePath.endsWith(file)) {
+            fileSymbols = index.symbolsInFile(file).toList();
+            if (fileSymbols.isNotEmpty) break;
+          }
+        }
+      }
+
+      symbols.addAll(fileSymbols);
+    }
+
+    if (symbols.isEmpty) {
+      return NotFoundResult('No symbols found in file "$filePath"');
+    }
+
+    // Sort by line number, then by kind priority
+    symbols.sort((a, b) {
+      final aLine = index.findDefinition(a.symbol)?.line ?? 0;
+      final bLine = index.findDefinition(b.symbol)?.line ?? 0;
+      if (aLine != bLine) return aLine.compareTo(bLine);
+
+      // Secondary sort by kind (classes first, then methods, etc.)
+      const kindPriority = {
+        'class': 0,
+        'mixin': 1,
+        'enum': 2,
+        'extension': 3,
+        'function': 4,
+        'method': 5,
+        'constructor': 6,
+        'field': 7,
+        'getter': 8,
+        'setter': 9,
+      };
+      final aPriority = kindPriority[a.kindString] ?? 10;
+      final bPriority = kindPriority[b.kindString] ?? 10;
+      return aPriority.compareTo(bPriority);
+    });
+
+    return FileSymbolsResult(
+      file: filePath,
+      symbols: symbols,
+    );
+  }
+
+  /// Get a symbol by its exact SCIP ID.
+  ///
+  /// Usage: `get "dart pub my_app 1.0.0 lib/auth.dart/AuthService#login()."`
+  Future<QueryResult> _getByScipId(ScipQuery query) async {
+    final symbolId = query.target;
+
+    // Search in all indexes
+    SymbolInfo? symbol;
+
+    if (registry != null) {
+      symbol = registry!.getSymbol(symbolId);
+    } else {
+      symbol = index.getSymbol(symbolId);
+    }
+
+    if (symbol == null) {
+      return NotFoundResult('No symbol found with ID "$symbolId"');
+    }
+
+    // Get definition and source
+    OccurrenceInfo? def;
+    String? source;
+
+    if (registry != null) {
+      def = registry!.findDefinition(symbol.symbol);
+      if (def != null) {
+        source = await registry!.getSource(symbol.symbol);
+      }
+    } else {
+      def = index.findDefinition(symbol.symbol);
+      if (def != null) {
+        source = await index.getSource(symbol.symbol);
+      }
+    }
+
+    // If no definition found, create a synthetic location
+    final location = def ??
+        OccurrenceInfo(
+          symbol: symbol.symbol,
+          file: symbol.file ?? 'unknown',
+          line: 0,
+          column: 0,
+          endLine: 0,
+          endColumn: 0,
+          isDefinition: true,
+        );
+
+    return DefinitionResult([
+      DefinitionMatch(
+        symbol: symbol,
+        location: location,
+        source: source,
+      ),
+    ]);
   }
 }

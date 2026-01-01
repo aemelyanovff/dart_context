@@ -735,6 +735,8 @@ base mixin DartContextSupport on ToolsSupport, RootsTrackingSupport {
 | `imports <file>` | File imports | `imports lib/auth.dart` |
 | `exports <path>` | Directory exports | `exports lib/` |
 | `deps <symbol>` | Dependencies | `deps AuthService` |
+| `symbols <file>` | Symbols in file | `symbols lib/auth.dart` |
+| `get <scip-id>` | Lookup by SCIP ID | `get "scip-dart..."` |
 | `files` | List indexed files | `files` |
 | `stats` | Index statistics | `stats` |
 

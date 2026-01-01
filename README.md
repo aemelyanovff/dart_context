@@ -108,6 +108,8 @@ dart_context --no-cache stats
 | `exports <path>` | What does this file/directory export? |
 | `deps <symbol>` | Dependencies of a symbol |
 | `sig <symbol>` | Get signature (without body) |
+| `symbols <file>` | List all symbols in a file |
+| `get <scip-id>` | Direct lookup by exact SCIP symbol ID |
 | `files` | List all indexed files |
 | `stats` | Get index statistics |
 
@@ -212,6 +214,12 @@ deps AuthService           # All dependencies of AuthService
 # Import/export analysis
 imports lib/auth/service.dart  # What does this file import?
 exports lib/auth/              # What does this directory export?
+
+# File-scoped queries
+symbols lib/auth/service.dart  # List all symbols in this file
+
+# Direct symbol lookup (by SCIP ID)
+get "scip-dart pub my_app 1.0.0 lib/auth.dart/AuthService#"
 
 # Pipe queries (chain multiple queries)
 find Auth* | refs          # Find references for all Auth* symbols

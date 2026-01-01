@@ -18,6 +18,8 @@
 /// - `exports <file>` - What does this file/directory export?
 /// - `deps <symbol>` - Dependencies of a symbol
 /// - `sig <symbol>` - Get signature (without body)
+/// - `symbols <file>` - List all symbols in a file
+/// - `get <scip-id>` - Direct lookup by exact SCIP symbol ID
 ///
 /// Qualified names:
 /// - `refs MyClass.login` - References to login method in MyClass
@@ -206,6 +208,8 @@ class ScipQuery {
       'exports' => QueryAction.exports,
       'deps' || 'dependencies' => QueryAction.deps,
       'sig' || 'signature' => QueryAction.signature,
+      'symbols' => QueryAction.symbols,
+      'get' => QueryAction.get,
       'files' => QueryAction.files,
       'stats' => QueryAction.stats,
       _ => throw FormatException('Unknown action: $action'),
@@ -385,6 +389,12 @@ enum QueryAction {
 
   /// Get signature (without body).
   signature,
+
+  /// List all symbols in a file.
+  symbols,
+
+  /// Direct lookup by exact SCIP symbol ID.
+  get,
 
   /// List all indexed files.
   files,

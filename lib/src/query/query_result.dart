@@ -534,6 +534,65 @@ class FilesResult extends QueryResult {
       };
 }
 
+/// Result containing symbols in a specific file.
+///
+/// Used by the `symbols <file>` query to list all symbols defined in a file.
+class FileSymbolsResult extends QueryResult {
+  const FileSymbolsResult({
+    required this.file,
+    required this.symbols,
+  });
+
+  final String file;
+  final List<SymbolInfo> symbols;
+
+  @override
+  bool get isEmpty => symbols.isEmpty;
+
+  @override
+  int get count => symbols.length;
+
+  @override
+  String toText() {
+    if (symbols.isEmpty) {
+      return 'No symbols found in $file.';
+    }
+
+    final buffer = StringBuffer();
+    buffer.writeln('## Symbols in $file (${symbols.length})');
+    buffer.writeln('');
+
+    // Group by kind for better readability
+    final byKind = <String, List<SymbolInfo>>{};
+    for (final sym in symbols) {
+      byKind.putIfAbsent(sym.kindString, () => []).add(sym);
+    }
+
+    for (final kind in byKind.keys) {
+      final kindSymbols = byKind[kind]!;
+      buffer.writeln('### ${kind}s (${kindSymbols.length})');
+      for (final sym in kindSymbols) {
+        buffer.writeln('- ${sym.name} [${sym.kindString}]');
+      }
+      buffer.writeln('');
+    }
+
+    return buffer.toString().trimRight();
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'file_symbols',
+        'file': file,
+        'count': symbols.length,
+        'symbols': symbols.map((s) => {
+          'name': s.name,
+          'kind': s.kindString,
+          'symbol': s.symbol,
+        }).toList(),
+      };
+}
+
 /// Result containing index statistics.
 class StatsResult extends QueryResult {
   const StatsResult(this.stats);
