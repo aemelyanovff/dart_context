@@ -1,6 +1,6 @@
 # Monorepo Support
 
-dart_context automatically discovers and indexes all packages in any directory structure.
+code_context automatically discovers and indexes all packages in any directory structure.
 
 ## Supported Structures
 
@@ -12,7 +12,7 @@ dart_context automatically discovers and indexes all packages in any directory s
 
 ```bash
 # List all discovered packages in a directory
-dart_context list-packages /path/to/monorepo
+code_context list-packages /path/to/monorepo
 ```
 
 ## Per-Package Indexes
@@ -41,12 +41,14 @@ When opening a directory with multiple packages:
 - Each package maintains its own incremental cache
 
 ```dart
-// Opening a mono repo
-final context = await DartContext.open('/path/to/monorepo');
+import 'package:code_context/code_context.dart';
+import 'package:dart_binding/dart_binding.dart';
 
-// All packages are discovered
-print(context.packages.length);     // e.g., 5 packages
-print(context.packageCount);        // Same as above
+// Register bindings
+CodeContext.registerBinding(DartBinding());
+
+// Opening a mono repo
+final context = await CodeContext.open('/path/to/monorepo');
 
 // Cross-package queries work seamlessly
 final result = await context.query('refs SharedUtils'); // Finds refs in other packages
@@ -76,10 +78,10 @@ my_monorepo/
 
 ```bash
 # Open the monorepo root
-dart_context -p /path/to/my_monorepo
+code_context -p /path/to/my_monorepo
 
 # Query across all packages
-dart_context refs CoreService    # Finds refs in core, api, and app
+code_context refs CoreService    # Finds refs in core, api, and app
 ```
 
 ## Example: Pub Workspace
@@ -97,9 +99,9 @@ workspace:
 
 ```bash
 # Open the workspace
-dart_context -p /path/to/my_workspace
+code_context -p /path/to/my_workspace
 
 # All workspace packages are indexed
-dart_context stats
+code_context stats
 ```
 

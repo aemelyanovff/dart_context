@@ -27,13 +27,12 @@ dart pub global activate code_context
 
 ```dart
 import 'package:code_context/code_context.dart';
+import 'package:dart_binding/dart_binding.dart';
 
 void main() async {
-  // Generic: auto-detect language
+  // Auto-detect language from project files
+  CodeContext.registerBinding(DartBinding());
   final context = await CodeContext.open('/path/to/project');
-
-  // Or use Dart-specific context with full features
-  final dartContext = await DartContext.open('/path/to/dart/project');
 
   // Query with DSL
   final result = await context.query('def AuthRepository');
@@ -42,6 +41,15 @@ void main() async {
   // Find references
   final refs = await context.query('refs login');
   print(refs.toText());
+
+  // Load external dependencies (SDK, packages)
+  if (!context.hasDependencies) {
+    await context.loadDependencies();
+  }
+
+  // Query across dependencies
+  final sdkResult = await context.query('find String kind:class lang:Dart');
+  print(sdkResult.toText());
 
   await context.dispose();
 }

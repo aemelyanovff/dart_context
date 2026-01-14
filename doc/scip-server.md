@@ -1,15 +1,15 @@
 # SCIP Protocol Server
 
-dart_context includes a JSON-RPC 2.0 server for programmatic access to code intelligence.
+code_context includes a JSON-RPC 2.0 server for programmatic access to code intelligence.
 
 ## Quick Start
 
 ```bash
 # Run over stdio (for process communication)
-dart run dart_context:scip_server
+dart run code_context:scip_server
 
 # Run as TCP server
-dart run dart_context:scip_server --tcp --port 3333
+dart run code_context:scip_server --tcp --port 3333
 ```
 
 ## Protocol
@@ -191,10 +191,10 @@ Notify the server of a file deletion.
 
 ```bash
 # Start the server
-$ dart run dart_context:scip_server
+$ dart run code_context:scip_server
 
 # In another terminal, or pipe to stdin:
-$ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"rootPath":"/my/project","languageId":"dart"}}' | dart run dart_context:scip_server
+$ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"rootPath":"/my/project","languageId":"dart"}}' | dart run code_context:scip_server
 ```
 
 Full example:
@@ -203,7 +203,7 @@ Full example:
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"rootPath":"'$(pwd)'","languageId":"dart"}}
 {"jsonrpc":"2.0","id":2,"method":"query","params":{"query":"find *Service kind:class"}}
 {"jsonrpc":"2.0","id":3,"method":"status"}
-{"jsonrpc":"2.0","id":4,"method":"shutdown"}' | dart run dart_context:scip_server 2>/dev/null
+{"jsonrpc":"2.0","id":4,"method":"shutdown"}' | dart run code_context:scip_server 2>/dev/null
 ```
 
 ## TCP Mode
@@ -212,7 +212,7 @@ For persistent connections, use TCP mode:
 
 ```bash
 # Start server
-dart run dart_context:scip_server --tcp --port 3333
+dart run code_context:scip_server --tcp --port 3333
 
 # Connect with netcat
 nc localhost 3333
@@ -250,7 +250,7 @@ import 'dart:convert';
 import 'dart:io';
 
 Future<void> main() async {
-  final process = await Process.start('dart', ['run', 'dart_context:scip_server']);
+  final process = await Process.start('dart', ['run', 'code_context:scip_server']);
   
   // Send request
   process.stdin.writeln(jsonEncode({
@@ -281,7 +281,7 @@ import subprocess
 import json
 
 process = subprocess.Popen(
-    ['dart', 'run', 'dart_context:scip_server'],
+    ['dart', 'run', 'code_context:scip_server'],
     stdin=subprocess.PIPE,
     stdout=subprocess.PIPE,
     text=True

@@ -1,6 +1,6 @@
 # Query DSL Reference
 
-dart_context provides a human and LLM-friendly query DSL for navigating your codebase.
+code_context provides a human and LLM-friendly query DSL for navigating your codebase.
 
 ## Commands
 
@@ -61,8 +61,11 @@ which login
 |--------|-------------|---------|
 | `kind:<kind>` | Filter by symbol kind | `find * kind:class` |
 | `in:<path>` | Filter by file path prefix | `find * in:lib/auth/` |
+| `lang:<language>` | Filter by programming language | `find String lang:Dart` |
 
 **Symbol kinds:** `class`, `method`, `function`, `field`, `enum`, `mixin`, `extension`, `getter`, `setter`, `constructor`
+
+**Languages:** `Dart` (more coming as language bindings are added)
 
 ## Grep Flags
 

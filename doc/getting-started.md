@@ -5,13 +5,14 @@
 ### As a Library
 
 ```bash
-dart pub add dart_context
+dart pub add code_context
+dart pub add dart_binding  # For Dart projects
 ```
 
 ### As a CLI Tool
 
 ```bash
-dart pub global activate dart_context
+dart pub global activate code_context
 ```
 
 ## Quick Start
@@ -19,11 +20,15 @@ dart pub global activate dart_context
 ### Library Usage
 
 ```dart
-import 'package:dart_context/dart_context.dart';
+import 'package:code_context/code_context.dart';
+import 'package:dart_binding/dart_binding.dart';
 
 void main() async {
-  // Open a project
-  final context = await DartContext.open('/path/to/project');
+  // Register available language bindings
+  CodeContext.registerBinding(DartBinding());
+
+  // Open a project (auto-detects language)
+  final context = await CodeContext.open('/path/to/project');
 
   // Query with DSL
   final result = await context.query('def AuthRepository');
@@ -37,10 +42,14 @@ void main() async {
   final members = await context.query('members MyClass');
   print(members.toJson());
 
-  // Watch for updates
-  context.updates.listen((update) {
-    print('Index updated: $update');
-  });
+  // Load external dependencies (SDK, packages)
+  if (!context.hasDependencies) {
+    await context.loadDependencies();
+  }
+
+  // Query across dependencies
+  final sdkResult = await context.query('find String kind:class');
+  print(sdkResult.toText());
 
   // Cleanup
   await context.dispose();
@@ -51,33 +60,61 @@ void main() async {
 
 ```bash
 # Find definition
-dart_context def AuthRepository
+code_context def AuthRepository
 
 # Find references
-dart_context refs login
+code_context refs login
 
 # Get class members
-dart_context members MyClass
+code_context members MyClass
 
 # Search with filters
-dart_context "find Auth* kind:class"
-dart_context "find * kind:method in:lib/auth/"
+code_context "find Auth* kind:class"
+code_context "find * kind:method in:lib/auth/"
+code_context "find String kind:class lang:Dart"
+
+# With external dependencies
+code_context --with-deps "find BuildContext"
 
 # Interactive mode
-dart_context -i
+code_context -i
 
 # Watch mode (shows file changes)
-dart_context -w
+code_context -w
 
 # Watch mode with auto-rerun query
-dart_context -w "find * kind:class"
+code_context -w "find * kind:class"
 
 # JSON output
-dart_context -f json refs login
+code_context -f json refs login
 
 # Force full re-index (skip cache)
-dart_context --no-cache stats
+code_context --no-cache stats
+
+# Dart-specific commands
+code_context dart:index-sdk /path/to/sdk
+code_context dart:index-flutter
+code_context dart:index-deps
+code_context dart:list-indexes
 ```
+
+## Query DSL
+
+| Query | Description | Example |
+|-------|-------------|---------|
+| `def <symbol>` | Find definition | `def AuthRepository` |
+| `refs <symbol>` | Find references | `refs login` |
+| `find <pattern>` | Search symbols | `find Auth*` |
+| `grep <pattern>` | Search source | `grep /TODO\|FIXME/` |
+| `members <symbol>` | Class members | `members MyClass` |
+
+## Filters
+
+| Filter | Description | Example |
+|--------|-------------|---------|
+| `kind:<kind>` | Filter by symbol kind | `kind:class`, `kind:method` |
+| `in:<path>` | Filter by file path | `in:lib/auth/` |
+| `lang:<language>` | Filter by language | `lang:Dart` |
 
 ## Next Steps
 
@@ -85,4 +122,5 @@ dart_context --no-cache stats
 - [Architecture](architecture.md) - How it works
 - [MCP Integration](mcp-integration.md) - Using with Cursor/AI agents
 - [Monorepo Support](monorepo.md) - Multi-package workspaces
-
+- [Cross-Package Queries](cross-package-queries.md) - Querying SDK and dependencies
+- [Analyzer Integration](analyzer-integration.md) - Sharing analyzer contexts
