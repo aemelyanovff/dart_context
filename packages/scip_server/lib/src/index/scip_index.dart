@@ -432,7 +432,8 @@ class ScipIndex {
     // Use enclosingEndLine if available, otherwise find the end by brace matching
     int endLine;
     if (def.enclosingEndLine != null) {
-      endLine = def.enclosingEndLine!;
+      // +1 because sublist is exclusive and enclosingEndLine is the line with the closing brace
+      endLine = def.enclosingEndLine! + 1;
     } else {
       // Find the end of the definition by matching braces
       endLine = _findDefinitionEnd(lines, startLine);

@@ -1,4 +1,6 @@
 // ignore_for_file: implementation_imports
+import 'dart:io';
+
 import 'package:code_context/code_context.dart';
 import 'package:scip_dart/src/gen/scip.pb.dart' as scip;
 import 'package:test/test.dart';
@@ -572,6 +574,65 @@ void main() {
         final result = await executor.execute('def login');
         // Should find at least one login method
         expect(result, isA<DefinitionResult>());
+      });
+    });
+
+    group('source extraction', () {
+      test('def query returns complete source code', () async {
+        // Create a temp directory with a real source file
+        final dir = await Directory.systemTemp.createTemp('def_test');
+        try {
+          final sourceFile = File('${dir.path}/lib/example.dart');
+          await sourceFile.create(recursive: true);
+          await sourceFile.writeAsString('''class MyClass {
+  void hello() {
+    print('hi');
+  }
+}
+''');
+
+          final testIndex = ScipIndex.fromScipIndex(
+            scip.Index(documents: [
+              scip.Document(
+                relativePath: 'lib/example.dart',
+                symbols: [
+                  scip.SymbolInformation(
+                    symbol: 'test lib/example.dart/MyClass#',
+                    kind: scip.SymbolInformation_Kind.Class,
+                    displayName: 'MyClass',
+                  ),
+                ],
+                occurrences: [
+                  scip.Occurrence(
+                    symbol: 'test lib/example.dart/MyClass#',
+                    range: [0, 6, 0, 13],
+                    symbolRoles: scip.SymbolRole.Definition.value,
+                    enclosingRange: [0, 0, 4, 1],
+                  ),
+                ],
+              ),
+            ]),
+            projectRoot: dir.path,
+            sourceRoot: dir.path,
+          );
+
+          final testExecutor = QueryExecutor(testIndex);
+          final result = await testExecutor.execute('def MyClass');
+
+          expect(result, isA<DefinitionResult>());
+          final defResult = result as DefinitionResult;
+          expect(defResult.definitions, hasLength(1));
+
+          final source = defResult.definitions.first.source;
+          expect(source, isNotNull);
+          expect(source, equals('''class MyClass {
+  void hello() {
+    print('hi');
+  }
+}'''));
+        } finally {
+          await dir.delete(recursive: true);
+        }
       });
     });
   });
